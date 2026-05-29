@@ -1,0 +1,1 @@
+[2026-05-29T19:50:01.560+0000] {task_context_logger.py:104} ERROR - Executor reports task instance <TaskInstance: lyonflow_traffic_ingestion.ingest_grand_lyon_traffic scheduled__2026-05-29T19:45:00+00:00 [queued]> finished (failed) although the task says it's queued. (Info: None) Was the task killed externally?

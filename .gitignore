@@ -1,0 +1,27 @@
+# Environmental variables and secrets
+.env
+kubernetes/secrets.yaml
+
+# Python caching
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Data files (raw and processed data should not be pushed to GitHub)
+*.json
+*.csv
+*.html
+00_connexion_postgres_boucles.ipynb
+load_data_transform_generate_image.py
+
+# IDE configs
+.vscode/
+.idea/

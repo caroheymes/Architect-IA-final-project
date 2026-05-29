@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-webserver
+  namespace: default
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    app: airflow-webserver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-webserver
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airflow-webserver
+  template:
+    metadata:
+      labels:
+        app: airflow-webserver
+    spec:
+      containers:
+        - name: airflow-webserver
+          image: lyonflow-app:latest  # Image personnalisée construite localement
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: "LocalExecutor"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+            - name: AIRFLOW__CORE__FERNET_KEY
+              value: "FB-g8349RhF25P_Yw8vYg4_r6R14gVp61937f_cR_34="
+            - name: AIRFLOW__CORE__LOAD_EXAMPLES
+              value: "false"
+            - name: API_LOGIN
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: API_LOGIN
+            - name: API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: API_PASSWORD
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: POSTGRES_DB
+            - name: POSTGRES_HOST
+              value: "postgres"
+            - name: MLFLOW_TRACKING_URI
+              value: "http://mlflow:5000"
+            - name: RAY_ADDRESS
+              value: "ray://ray-head:10001"
+          command: ["sh", "-c"]
+          args:
+            - |
+              airflow db init && \
+              airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com && \
+              airflow webserver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-scheduler
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airflow-scheduler
+  template:
+    metadata:
+      labels:
+        app: airflow-scheduler
+    spec:
+      containers:
+        - name: airflow-scheduler
+          image: lyonflow-app:latest  # Image personnalisée construite localement
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: "LocalExecutor"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+            - name: AIRFLOW__CORE__FERNET_KEY
+              value: "FB-g8349RhF25P_Yw8vYg4_r6R14gVp61937f_cR_34="
+            - name: AIRFLOW__CORE__LOAD_EXAMPLES
+              value: "false"
+            - name: API_LOGIN
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: API_LOGIN
+            - name: API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: API_PASSWORD
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: lyonflow-secrets
+                  key: POSTGRES_DB
+            - name: POSTGRES_HOST
+              value: "postgres"
+            - name: MLFLOW_TRACKING_URI
+              value: "http://mlflow:5000"
+            - name: RAY_ADDRESS
+              value: "ray://ray-head:10001"
+          command: ["sh", "-c"]
+          args: ["airflow scheduler"]

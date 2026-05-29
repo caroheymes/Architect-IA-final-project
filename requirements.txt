@@ -1,0 +1,26 @@
+# Ingestion and storage dependencies pour python=3.12.13
+requests
+sqlalchemy
+psycopg2-binary
+pytz
+
+# Geospatial and transformation dependencies
+geopandas==1.1.3
+shapely==2.1.2
+h3== 4.4.2
+pyproj>=3.6.0
+numpy
+pandas
+
+# Machine Learning, tracking, and scoring
+xgboost
+prophet
+skore
+mlflow
+
+# Visualisation and UI
+plotly==5.24.1
+streamlit
+
+# tests
+pytest

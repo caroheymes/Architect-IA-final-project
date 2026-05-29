@@ -1,0 +1,186 @@
+
+version: '3.8'
+
+x-airflow-common:
+  &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment:
+    &airflow-common-env
+    # Airflow configuration
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-lyonflow}:${POSTGRES_PASSWORD:-lyonflow_password}@postgres:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-FB-g8349RhF25P_Yw8vYg4_r6R14gVp61937f_cR_34=}
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    # Grand Lyon API Credentials
+    API_LOGIN: ${API_LOGIN}
+    API_PASSWORD: ${API_PASSWORD}
+    # Postgres Connection for data pipeline
+    POSTGRES_USER: ${POSTGRES_USER:-lyonflow}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lyonflow_password}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: '5432'
+    POSTGRES_DB: ${POSTGRES_DB:-lyonflow}
+    # MLflow Tracking URI
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    # Ray Address
+    RAY_ADDRESS: ray://ray-head:10001
+    # Python path to import our own modules
+    PYTHONPATH: /opt/airflow/project
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./data:/opt/airflow/data
+    - .:/opt/airflow/project # Mount project root for direct access to shared scripts
+  user: "50000:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  # ==========================================
+  # 1. DATABASE LAYER (Postgres)
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: lyonflow-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lyonflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lyonflow_password}
+      POSTGRES_DB: ${POSTGRES_DB:-lyonflow}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lyonflow} -d ${POSTGRES_DB:-lyonflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # ==========================================
+  # 2. TRACKING LAYER (MLflow Server)
+  # ==========================================
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: lyonflow-mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      - BACKEND_STORE_URI=postgresql://${POSTGRES_USER:-lyonflow}:${POSTGRES_PASSWORD:-lyonflow_password}@postgres:5432/mlflow
+      - ARTIFACT_ROOT=/mlflow/artifacts
+    volumes:
+      - mlflow-artifacts:/mlflow/artifacts
+    entrypoint: >
+      sh -c "
+      pip install --no-cache-dir psycopg2-binary &&
+      mlflow server 
+      --backend-store-uri postgresql://${POSTGRES_USER:-lyonflow}:${POSTGRES_PASSWORD:-lyonflow_password}@postgres:5432/mlflow
+      --default-artifact-root /mlflow/artifacts 
+      --host 0.0.0.0
+      --port 5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+  # ==========================================
+  # 3. DISTRIBUTED CALCULUS LAYER (Ray Cluster)
+  # ==========================================
+  ray-head:
+    image: rayproject/ray:2.35.0-py312
+    container_name: lyonflow-ray-head
+    ports:
+      - "8265:8265"  # Dashboard Port
+      - "10001:10001" # Ray Client Port
+      - "6379:6379"   # Ray Redis/GCS Port
+    volumes:
+      - .:/home/ray/project
+    environment:
+      - API_LOGIN=${API_LOGIN}
+      - API_PASSWORD=${API_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER:-lyonflow}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-lyonflow_password}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=${POSTGRES_DB:-lyonflow}
+    command: ray start --head --port=6379 --dashboard-host=0.0.0.0 --block
+    restart: always
+
+  ray-worker:
+    image: rayproject/ray:2.35.0-py312
+    container_name: lyonflow-ray-worker
+    volumes:
+      - .:/home/ray/project
+    environment:
+      - API_LOGIN=${API_LOGIN}
+      - API_PASSWORD=${API_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER:-lyonflow}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-lyonflow_password}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=${POSTGRES_DB:-lyonflow}
+    command: ray start --address=ray-head:6379 --block
+    depends_on:
+      - ray-head
+    restart: always
+
+  # ==========================================
+  # 4. ORCHESTRATION LAYER (Apache Airflow)
+  # ==========================================
+  airflow-init:
+    <<: *airflow-common
+    container_name: lyonflow-airflow-init
+    command: version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+      _AIRFLOW_WWW_USER_ROLE: Admin
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: lyonflow-airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    restart: always
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: lyonflow-airflow-scheduler
+    command: scheduler
+    restart: always
+
+  # ==========================================
+  # 5. VISUALISATION LAYER (Streamlit App)
+  # ==========================================
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lyonflow-streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lyonflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lyonflow_password}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: ${POSTGRES_DB:-lyonflow}
+    volumes:
+      - .:/opt/airflow/project
+    working_dir: /opt/airflow/project
+    entrypoint: ["python", "-m", "streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  postgres-data:
+  mlflow-artifacts:
