@@ -21,6 +21,7 @@ env/
 *.html
 00_connexion_postgres_boucles.ipynb
 load_data_transform_generate_image.py
+./perso
 
 # IDE configs
 .vscode/

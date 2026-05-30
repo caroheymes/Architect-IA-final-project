@@ -32,7 +32,7 @@ x-airflow-common:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
-    - ./data:/opt/airflow/data
+    - D:/donnée_histo_pour_demoday:/opt/airflow/data
     - .:/opt/airflow/project # Mount project root for direct access to shared scripts
   user: "50000:0"
   depends_on:

@@ -205,3 +205,7 @@
 [2026-05-29T20:05:48.478+0000] {logging_mixin.py:188} INFO - [2026-05-29T20:05:48.477+0000] {dagbag.py:545} INFO - Filling up the DagBag from /opt/airflow/dags/dag_pipeline.py
 [2026-05-29T20:05:48.510+0000] {processor.py:840} INFO - DAG(s) 'lyonflow_traffic_pipeline' retrieved from /opt/airflow/dags/dag_pipeline.py
 [2026-05-29T20:05:48.571+0000] {logging_mixin.py:188} INFO - [2026-05-29T20:05:48.570+0000] {dag.py:3096} INFO - Sync 1 DAGs
+[2026-05-29T20:07:08.825+0000] {processor.py:161} INFO - Started process (PID=567) to work on /opt/airflow/dags/dag_pipeline.py
+[2026-05-29T20:07:08.827+0000] {processor.py:830} INFO - Processing file /opt/airflow/dags/dag_pipeline.py for tasks to queue
+[2026-05-29T20:07:08.830+0000] {logging_mixin.py:188} INFO - [2026-05-29T20:07:08.829+0000] {dagbag.py:545} INFO - Filling up the DagBag from /opt/airflow/dags/dag_pipeline.py
+[2026-05-29T20:07:08.873+0000] {processor.py:840} INFO - DAG(s) 'lyonflow_traffic_pipeline' retrieved from /opt/airflow/dags/dag_pipeline.py

@@ -1,0 +1,24 @@
+[2026-05-30T08:10:00.865+0000] {local_task_job_runner.py:120} INFO - ::group::Pre task execution logs
+[2026-05-30T08:10:00.905+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=non-requeueable deps ti=<TaskInstance: lyonflow_traffic_pipeline.ingest_grand_lyon_traffic scheduled__2026-05-30T08:05:00+00:00 [queued]>
+[2026-05-30T08:10:00.914+0000] {taskinstance.py:2076} INFO - Dependencies all met for dep_context=requeueable deps ti=<TaskInstance: lyonflow_traffic_pipeline.ingest_grand_lyon_traffic scheduled__2026-05-30T08:05:00+00:00 [queued]>
+[2026-05-30T08:10:00.916+0000] {taskinstance.py:2306} INFO - Starting attempt 1 of 3
+[2026-05-30T08:10:00.932+0000] {taskinstance.py:2330} INFO - Executing <Task(PythonOperator): ingest_grand_lyon_traffic> on 2026-05-30 08:05:00+00:00
+[2026-05-30T08:10:00.942+0000] {standard_task_runner.py:90} INFO - Running: ['airflow', 'tasks', 'run', 'lyonflow_traffic_pipeline', 'ingest_grand_lyon_traffic', 'scheduled__2026-05-30T08:05:00+00:00', '--job-id', '142', '--raw', '--subdir', 'DAGS_FOLDER/dag_pipeline.py', '--cfg-path', '/tmp/tmpkcik29f9']
+[2026-05-30T08:10:00.945+0000] {standard_task_runner.py:91} INFO - Job 142: Subtask ingest_grand_lyon_traffic
+[2026-05-30T08:10:00.949+0000] {logging_mixin.py:188} WARNING - /home/airflow/.local/lib/python3.12/site-packages/airflow/task/task_runner/standard_task_runner.py:61 DeprecationWarning: This process (pid=415) is multi-threaded, use of fork() may lead to deadlocks in the child.
+[2026-05-30T08:10:00.950+0000] {standard_task_runner.py:63} INFO - Started process 416 to run task
+[2026-05-30T08:10:01.010+0000] {task_command.py:426} INFO - Running <TaskInstance: lyonflow_traffic_pipeline.ingest_grand_lyon_traffic scheduled__2026-05-30T08:05:00+00:00 [running]> on host 293f768d9255
+[2026-05-30T08:10:01.131+0000] {taskinstance.py:2648} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='lyonflow' AIRFLOW_CTX_DAG_ID='lyonflow_traffic_pipeline' AIRFLOW_CTX_TASK_ID='ingest_grand_lyon_traffic' AIRFLOW_CTX_EXECUTION_DATE='2026-05-30T08:05:00+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='scheduled__2026-05-30T08:05:00+00:00'
+[2026-05-30T08:10:01.132+0000] {taskinstance.py:430} INFO - ::endgroup::
+[2026-05-30T08:10:01.148+0000] {ingest_api.py:52} INFO - Fetching real-time traffic data from Grand Lyon API...
+[2026-05-30T08:10:02.360+0000] {ingest_api.py:57} INFO - Successfully downloaded data from API.
+[2026-05-30T08:10:02.363+0000] {ingest_api.py:67} INFO - Connecting to local PostgreSQL database...
+[2026-05-30T08:10:02.376+0000] {ingest_api.py:74} INFO - Ensuring schema and table exist...
+[2026-05-30T08:10:02.379+0000] {ingest_api.py:89} INFO - Inserting raw JSON data into bronze layer...
+[2026-05-30T08:10:02.563+0000] {ingest_api.py:99} INFO - 🟢 Successfully ingested raw traffic data at 2026-05-30 10:10:02 CEST!
+[2026-05-30T08:10:02.572+0000] {python.py:237} INFO - Done. Returned value was: None
+[2026-05-30T08:10:02.574+0000] {taskinstance.py:441} INFO - ::group::Post task execution logs
+[2026-05-30T08:10:02.587+0000] {taskinstance.py:1206} INFO - Marking task as SUCCESS. dag_id=lyonflow_traffic_pipeline, task_id=ingest_grand_lyon_traffic, run_id=scheduled__2026-05-30T08:05:00+00:00, execution_date=20260530T080500, start_date=20260530T081000, end_date=20260530T081002
+[2026-05-30T08:10:02.614+0000] {local_task_job_runner.py:240} INFO - Task exited with return code 0
+[2026-05-30T08:10:02.640+0000] {taskinstance.py:3498} INFO - 1 downstream tasks scheduled from follow-on schedule check
+[2026-05-30T08:10:02.647+0000] {local_task_job_runner.py:222} INFO - ::endgroup::
