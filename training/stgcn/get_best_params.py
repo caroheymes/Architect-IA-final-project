@@ -88,10 +88,14 @@ def main():
         
         # We enforce seq_len to 120 as specified for the Champion model
         params["seq_len"] = 120
-        # Ensure batch_size is safe for sequence length of 120 (max 4 to fit in GPU VRAM)
-        if "batch_size" in params and params["batch_size"] > 4:
-            print(f"# Scaling down batch_size from {params['batch_size']} to 2 to prevent GPU VRAM Out Of Memory errors on seq_len 120.")
-            params["batch_size"] = 2
+        # # Ensure batch_size is safe for sequence length of 120 (max 4 to fit in GPU VRAM)
+        # if "batch_size" in params and params["batch_size"] > 4:
+        #     print(f"# Scaling down batch_size from {params['batch_size']} to 16 to prevent GPU VRAM Out Of Memory errors on seq_len 120.")
+        #     params["batch_size"] = 16
+        # Limit batch_size to a maximum of 16 to fit smoothly in 24GB VRAM
+        if "batch_size" in params and params["batch_size"] > 16:
+            print(f"# Scaling down batch_size from {params['batch_size']} to 16 to prevent GPU VRAM Out Of Memory errors on seq_len 120.")
+            params["batch_size"] = 16
             
         for k, v in params.items():
             env_key = k.upper()
