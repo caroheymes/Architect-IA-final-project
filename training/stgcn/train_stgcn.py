@@ -341,8 +341,9 @@ def train_model():
         logger.info("🎨 Analysis plot successfully logged to MLflow under 'plots/stratified_error_analysis.png'!")
 
         # Log model checkpoint
-        mlflow.log_artifact(model_path, artifact_path="model_checkpoints")
+        mlflow.log_artifact("models/stgcn_prod_latest.pt", artifact_path="model_checkpoints")
         logger.info("🏆 Production training completed successfully!")
+
 
 if __name__ == "__main__":
     train_model()
