@@ -61,6 +61,11 @@ services:
       timeout: 5s
       retries: 5
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 2G
 
   # ==========================================
   # 2. TRACKING LAYER (MLflow Server)
@@ -82,17 +87,26 @@ services:
       --backend-store-uri postgresql://${POSTGRES_USER:-lyonflow}:${POSTGRES_PASSWORD:-lyonflow_password}@postgres:5432/mlflow
       --default-artifact-root /mlflow/artifacts 
       --host 0.0.0.0
-      --port 5000"
+      --port 5000
+      --disable-security-middleware"
     depends_on:
       postgres:
         condition: service_healthy
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 2G
 
   # ==========================================
   # 3. DISTRIBUTED CALCULUS LAYER (Ray Cluster)
   # ==========================================
   ray-head:
-    image: rayproject/ray:2.35.0-py312
+    build:
+      context: .
+      dockerfile: Dockerfile.ray
+    image: lyonflow-ray:latest
     container_name: lyonflow-ray-head
     ports:
       - "8265:8265"  # Dashboard Port
@@ -107,11 +121,20 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-lyonflow_password}
       - POSTGRES_HOST=postgres
       - POSTGRES_DB=${POSTGRES_DB:-lyonflow}
-    command: ray start --head --port=6379 --dashboard-host=0.0.0.0 --block
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    command: ray start --head --port=6379 --dashboard-host=0.0.0.0 --num-cpus=1 --block
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 3G
 
   ray-worker:
-    image: rayproject/ray:2.35.0-py312
+    build:
+      context: .
+      dockerfile: Dockerfile.ray
+    image: lyonflow-ray:latest
     container_name: lyonflow-ray-worker
     volumes:
       - .:/home/ray/project
@@ -122,10 +145,21 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-lyonflow_password}
       - POSTGRES_HOST=postgres
       - POSTGRES_DB=${POSTGRES_DB:-lyonflow}
-    command: ray start --address=ray-head:6379 --block
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    command: ray start --address=ray-head:6379 --num-cpus=2 --block
     depends_on:
       - ray-head
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 9G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   # ==========================================
   # 4. ORCHESTRATION LAYER (Apache Airflow)
@@ -149,12 +183,22 @@ services:
     ports:
       - "8080:8080"
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1.5G
 
   airflow-scheduler:
     <<: *airflow-common
     container_name: lyonflow-airflow-scheduler
     command: scheduler
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1.5G
 
   # ==========================================
   # 5. VISUALISATION LAYER (Streamlit App)
@@ -180,6 +224,32 @@ services:
       postgres:
         condition: service_healthy
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 1G
+
+  # ==========================================
+  # 6. EXTERNAL ACCESS LAYER (ngrok Tunnel)
+  # ==========================================
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok_tunnel
+    ports:
+      - "4040:4040"
+    command: "tcp postgres:5432"
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'
+          memory: 256M
 
 volumes:
   postgres-data:

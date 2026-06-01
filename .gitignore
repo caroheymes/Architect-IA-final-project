@@ -18,10 +18,21 @@ env/
 # Data files (raw and processed data should not be pushed to GitHub)
 *.json
 *.csv
-*.html
+# Logs
+logs/
+*.log
+
+# Training models and weights
+*.pt
+*.pth
+
+# Personal folder & scratchpads
+./perso
+/perso/
 00_connexion_postgres_boucles.ipynb
 load_data_transform_generate_image.py
-./perso
+*.png
+*.html
 
 # IDE configs
 .vscode/
