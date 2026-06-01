@@ -30,17 +30,17 @@ DB_NAME = os.getenv("POSTGRES_DB", "lyonflow")
 MLFLOW_URL = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 
 # Default Hyperparameters
-SEQ_LEN = 120            # 10h of historical series (5min steps)
-BATCH_SIZE = 2           # Reduced to fit 10h seq_len (120) in 4GB VRAM
-HIDDEN_CHANNELS = 128
-LEARNING_RATE = 0.001
-WEIGHT_DECAY = 1e-5
-EPOCHS = 100
+SEQ_LEN = int(os.getenv("SEQ_LEN", "120"))            # 10h of historical series (5min steps)
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "2"))           # Reduced to fit 10h seq_len (120) in 4GB VRAM
+HIDDEN_CHANNELS = int(os.getenv("HIDDEN_CHANNELS", "128"))
+LEARNING_RATE = float(os.getenv("LEARNING_RATE", "0.001"))
+WEIGHT_DECAY = float(os.getenv("WEIGHT_DECAY", "1e-5"))
+EPOCHS = int(os.getenv("EPOCHS", "100"))
 
 # Staircase weighted loss penalties (for under-prediction of congestions)
-WEIGHT_JAM = 15.0        # < 10 km/h
-WEIGHT_SLOW = 5.0        # 10 - 30 km/h
-WEIGHT_NORMAL = 1.0      # > 30 km/h
+WEIGHT_JAM = float(os.getenv("WEIGHT_JAM", "15.0"))        # < 10 km/h
+WEIGHT_SLOW = float(os.getenv("WEIGHT_SLOW", "5.0"))        # 10 - 30 km/h
+WEIGHT_NORMAL = float(os.getenv("WEIGHT_NORMAL", "1.0"))      # > 30 km/h
 
 def train_model():
     # Capping PyTorch threads to avoid CPU thrashing on laptops
