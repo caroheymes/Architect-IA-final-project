@@ -29,6 +29,7 @@ logs/
 # Personal folder & scratchpads
 ./perso
 /perso/
+./trash/
 00_connexion_postgres_boucles.ipynb
 load_data_transform_generate_image.py
 *.png

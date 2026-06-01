@@ -4,9 +4,15 @@ from torch_geometric.nn import GCNConv
 
 class SpatioTemporalGCN(nn.Module):
     """
-    Spatio-Temporal Graph Convolutional Network (STGCN).
-    Combines a temporal recurrence layer (GRU) with spatial graph convolutions (GCNConv)
-    and residual skip connections to model spatial-temporal dynamics of traffic speeds.
+    Spatio-Temporal Graph Neural Network (ST-GRU-GNN).
+    
+    Note: While named 'SpatioTemporalGCN' (STGCN) for simplicity in the codebase, 
+    this architecture differs from the original STGCN by Yu et al. (2018) which uses 1D causal 
+    temporal convolutions with GLU gates. 
+    Instead, this is a hybrid recurrent-spatial model ('GRU + GCN with skip connections') 
+    which combines a temporal recurrent layer (nn.GRU) with spatial graph convolutions (GCNConv) 
+    and residual skip connections. This design is highly robust to noise and irregular sampling 
+    inherent in Lyon's real-world traffic data.
     """
     def __init__(self, in_channels, hidden_channels, out_channels):
         super(SpatioTemporalGCN, self).__init__()

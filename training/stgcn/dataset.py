@@ -42,7 +42,9 @@ def load_traffic_series(engine):
         con=engine
     )
     df_pivot = df_facts.pivot(index="timestamp", columns="node_idx", values="properties_vitesse")
-    vitesse_matrix_raw = np.nan_to_num(df_pivot.values, nan=30.0)
+    import os
+    default_speed = float(os.getenv("LYON_DEFAULT_SPEED", 30.0))
+    vitesse_matrix_raw = np.nan_to_num(df_pivot.values, nan=default_speed)
     
     # Extract cyclical temporal variables
     df_pivot.index = pd.to_datetime(df_pivot.index)

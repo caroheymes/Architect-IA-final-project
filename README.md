@@ -42,11 +42,16 @@ graph TD
 
 Pour résoudre le défi de la prédiction du trafic, une simple approche par séries temporelles classiques (LSTM, Prophet) ou par apprentissage tabulaire (XGBoost) est insuffisante car **le trafic routier est intrinsèquement spatio-temporel**.
 
-### 1. Modèle : STGCN (Spatio-Temporal Graph Convolutional Network)
-Le trafic sur un segment de route dépend à la fois de son propre historique (temporel) et du trafic des rues adjacentes qui s'y déverse (spatial). 
-* **Composante Spatiale (Graph Convolutional Networks - GCN) :** Utilise des convolutions spectrales de graphes sur la matrice d'adjacence du réseau routier pour capturer l'influence de la topologie physique des routes (propagation des bouchons d'une rue à une autre).
-* **Composante Temporelle (Gated CNNs) :** Utilise des réseaux de neurones convolutifs temporels dotés de portes de contrôle (Gated Linear Units - GLU) plutôt que des RNN/LSTM. Cela permet de modéliser les dépendances temporelles de manière beaucoup plus rapide et stable, en évitant les gradients qui s'explosent ou s'évanouissent.
-* **Le modèle STGCN** de LyonFlow est écrit sous **PyTorch Geometric (PyG)**.
+### 1. Architecture du Modèle : Spatio-Temporal GRU-GNN (ST-GRU-GNN)
+> [!IMPORTANT]
+> **Clarification Architecturale (Honnêteté Scientifique) :**
+> Notre implémentation dans `model.py` différe de la structure STGCN originale proposée par Yu et al. (2018). Alors que l'article original préconise des convolutions temporelles causales 1D (Gated CNNs avec GLU), nous implémentons un modèle hybride récurrent-spatial : **GRU + GCN avec Skip Connections** (que nous désignons sous le nom de **ST-GRU-GNN**). Bien que le nom de classe `SpatioTemporalGCN` et les scripts conservent par simplicité le préfixe `stgcn`, l'architecture récurrente est ici privilégiée pour sa robustesse face au bruit et à l'échantillonnage irrégulier du flux réel de la Métropole de Lyon.
+
+Le trafic dépend à la fois de son propre historique (temporel) et du trafic des rues adjacentes qui s'y déverse (spatial) :
+* **Composante Temporelle (Temporal GRU Encoder) :** Utilise un réseau récurrent **GRU (Gated Recurrent Unit)** pour modéliser les dépendances temporelles séquentielles de vitesse sur chaque nœud du graphe. Cela capte efficacement les dynamiques temporelles à court terme sans souffrir des limitations des convolutions causales sur des séries réelles bruitées.
+* **Composante Spatiale (Spatial GNN Decoder) :** Utilise deux couches de convolutions spectrales de graphes (`GCNConv` de PyTorch Geometric) sur la matrice d'adjacence du réseau routier pour propager l'influence physique des flux entre segments adjacents.
+* **Sauts de Connexion (Residual Skip Connections) :** Des connexions résiduelles relient les étapes de convolution spatiale pour stabiliser le calcul des gradients lors de la backpropagation.
+* **Framework :** Écrit sous **PyTorch Geometric (PyG)**.
 
 ### 2. Moteur : Ray Cluster (Apprentissage Distribué)
 L'entraînement d'un modèle de Deep Learning sur des graphes (GNN) est extrêmement gourmand en ressources de calcul.
@@ -96,3 +101,8 @@ Pour lancer l'entraînement final du modèle STGCN optimisé avec les meilleurs 
 ```powershell
 docker exec -it lyonflow-ray-worker python /home/ray/project/training/stgcn/train_stgcn.py
 ```
+docker ps --format "table {{.Names}}\t{{.Status}}"
+docker ps -f "name=ray-worker"
+docker exec -it f8db0d184d73_lyonflow-ray-worker python /home/ray/project/training/stgcn/train_stgcn.py
+
+docker exec -it f8db0d184d73_lyonflow-ray-worker /home/ray/project/training/stgcn/train_stgcn.py

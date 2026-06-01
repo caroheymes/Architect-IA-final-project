@@ -94,6 +94,8 @@ def objective(trial):
             
             loss = (((predictions - batch.y) ** 2) * weights).mean()
             loss.backward()
+            # Gradient clipping to prevent gradient explosion (critical for GRUs/GNNs)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             
         # Evaluation

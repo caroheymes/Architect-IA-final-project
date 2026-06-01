@@ -85,9 +85,10 @@ services:
       pip install --no-cache-dir psycopg2-binary &&
       mlflow server 
       --backend-store-uri postgresql://${POSTGRES_USER:-lyonflow}:${POSTGRES_PASSWORD:-lyonflow_password}@postgres:5432/mlflow
-      --default-artifact-root /mlflow/artifacts 
+      --artifacts-destination /mlflow/artifacts 
       --host 0.0.0.0
       --port 5000
+      --serve-artifacts
       --disable-security-middleware"
     depends_on:
       postgres:

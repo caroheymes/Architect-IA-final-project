@@ -529,10 +529,11 @@ def materialize_gold_layer():
                 imputed = True
                 # Fallback hierarchy:
                 # 1. Historical average speed of this sensor
-                # 2. General Lyon traffic default speed (30.0 km/h)
-                val = history_avg_dict.get(twigid, 30.0)
+                # 2. General Lyon traffic default speed (configured via environment, default 30.0 km/h)
+                default_speed = float(os.getenv("LYON_DEFAULT_SPEED", 30.0))
+                val = history_avg_dict.get(twigid, default_speed)
                 if pd.isna(val):
-                    val = 30.0
+                    val = default_speed
             
             gold_facts.append({
                 "timestamp": latest_timestamp,
