@@ -64,49 +64,176 @@ st.sidebar.info("""
     **LyonFlow Stack**:
     - **Orchestration**: Apache Airflow
     - **Calcul Distribué**: Ray Core
-    - **Tracking ML**: MLflow & Skore
+    - **Tracking ML**: MLflow
     - **Base de données**: PostgreSQL
 """)
 
-def get_mlflow_artifact_plot():
+def get_mlflow_runs():
+    import mlflow
+    from mlflow.tracking import MlflowClient
+    
+    mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+    client = MlflowClient(tracking_uri=mlflow_uri)
+    try:
+        runs = client.search_runs(
+            experiment_ids=["7"],
+            order_by=["attribute.start_time DESC"],
+            max_results=15
+        )
+        return runs
+    except Exception:
+        return []
+
+def get_mlflow_artifact_plot_for_run(run_id):
     import mlflow
     from mlflow.tracking import MlflowClient
     
     mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
     client = MlflowClient(tracking_uri=mlflow_uri)
     
-    specific_run_id = "eb4789d2e3374056aede9faa588334c8"
     plot_subpath = "plots/stratified_error_analysis.png"
     
-    # 1. Try downloading from the specific run ID
     try:
-        local_path = client.download_artifacts(specific_run_id, plot_subpath)
+        local_path = client.download_artifacts(run_id, plot_subpath)
         if os.path.exists(local_path):
-            return local_path, specific_run_id, "STGCN Production Run"
+            return local_path
     except Exception:
         pass
-        
-    # 2. Try searching the latest run in experiment 7
+    return None
+
+def get_mlflow_metrics_history_for_run(run_id):
+    import mlflow
+    from mlflow.tracking import MlflowClient
+    import pandas as pd
+    
+    mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+    client = MlflowClient(tracking_uri=mlflow_uri)
+    
     try:
-        runs = client.search_runs(
-            experiment_ids=["7"],
-            order_by=["attribute.start_time DESC"],
-            max_results=5
-        )
-        for run in runs:
-            run_id = run.info.run_id
-            try:
-                artifacts = client.list_artifacts(run_id, path="plots")
-                if any(art.path == plot_subpath for art in artifacts):
-                    local_path = client.download_artifacts(run_id, plot_subpath)
-                    if os.path.exists(local_path):
-                        return local_path, run_id, run.info.run_name or "STGCN Run"
-            except Exception:
-                continue
-    except Exception:
-        pass
+        history_loss = client.get_metric_history(run_id, "train_loss_std")
+        history_mae = client.get_metric_history(run_id, "test_mae_kmh")
         
-    return None, None, None
+        epochs_loss = [m.step for m in history_loss]
+        values_loss = [m.value for m in history_loss]
+        
+        epochs_mae = [m.step for m in history_mae]
+        values_mae = [m.value for m in history_mae]
+        
+        df_loss = pd.DataFrame({"Epoch": epochs_loss, "Train Loss (std)": values_loss}).sort_values("Epoch")
+        df_mae = pd.DataFrame({"Epoch": epochs_mae, "Test MAE (km/h)": values_mae}).sort_values("Epoch")
+        
+        df_metrics = pd.merge(df_loss, df_mae, on="Epoch", how="outer")
+        return df_metrics
+    except Exception:
+        return None
+
+def plot_training_curves(df_metrics):
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    
+    fig = make_subplots(
+        rows=1, cols=2, 
+        subplot_titles=(
+            "📉 Perte d'entraînement (Perte Normalisée / MSE std)", 
+            "📈 MAE de validation (km/h)"
+        )
+    )
+    
+    # 1. Train Loss Curve
+    fig.add_trace(
+        go.Scatter(
+            x=df_metrics["Epoch"], 
+            y=df_metrics["Train Loss (std)"], 
+            mode="lines+markers",
+            name="Perte d'entraînement (std)",
+            line=dict(color="#1E3A8A", width=3),
+            marker=dict(size=6, color="#1E3A8A"),
+            hovertemplate="Époque %{x}<br>Perte std: %{y:.4f}<extra></extra>"
+        ),
+        row=1, col=1
+    )
+    
+    # 2. Test MAE Curve
+    fig.add_trace(
+        go.Scatter(
+            x=df_metrics["Epoch"], 
+            y=df_metrics["Test MAE (km/h)"], 
+            mode="lines+markers",
+            name="MAE de validation (km/h)",
+            line=dict(color="#10B981", width=3),
+            marker=dict(size=6, color="#10B981"),
+            hovertemplate="Époque %{x}<br>MAE: %{y:.2f} km/h<extra></extra>"
+        ),
+        row=1, col=2
+    )
+    
+    fig.update_layout(
+        height=400, 
+        template="plotly_white",
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        margin=dict(l=30, r=30, t=50, b=30)
+    )
+    
+    fig.update_xaxes(title_text="Époque", gridcolor="#E5E7EB", row=1, col=1)
+    fig.update_xaxes(title_text="Époque", gridcolor="#E5E7EB", row=1, col=2)
+    fig.update_yaxes(title_text="Perte standardisée", gridcolor="#E5E7EB", row=1, col=1)
+    fig.update_yaxes(title_text="MAE (km/h)", gridcolor="#E5E7EB", row=1, col=2)
+    
+    return fig
+
+# Dynamic MLflow Run Selector in Sidebar
+st.sidebar.markdown("---")
+st.sidebar.subheader("🎯 Suivi des Expériences MLflow")
+
+runs = get_mlflow_runs()
+selected_run_id = None
+selected_run_name = None
+selected_run_status = None
+
+if runs:
+    run_options = []
+    run_id_map = {}
+    run_name_map = {}
+    run_status_map = {}
+    
+    for r in runs:
+        run_name = r.data.tags.get("mlflow.runName", "STGCN Run")
+        status = r.info.status
+        label = f"{run_name} ({r.info.run_id[:8]}) [{status}]"
+        run_options.append(label)
+        run_id_map[label] = r.info.run_id
+        run_name_map[label] = run_name
+        run_status_map[label] = status
+        
+    default_index = 0
+    for idx, label in enumerate(run_options):
+        if run_id_map[label] == "eb4789d2e3374056aede9faa588334c8":
+            default_index = idx
+            break
+            
+    selected_label = st.sidebar.selectbox(
+        "Sélectionner un entraînement :",
+        run_options,
+        index=default_index
+    )
+    selected_run_id = run_id_map[selected_label]
+    selected_run_name = run_name_map[selected_label]
+    selected_run_status = run_status_map[selected_label]
+    
+    status_emoji = "🟢" if selected_run_status == "FINISHED" else "🟠" if selected_run_status == "RUNNING" else "🔴"
+    st.sidebar.success(f"{status_emoji} Run actif: `{selected_run_id[:8]}`")
+else:
+    st.sidebar.warning("⚠️ Connexion directe MLflow indisponible.")
+    selected_run_id = "eb4789d2e3374056aede9faa588334c8"
+    selected_run_name = "STGCN Production Run"
+    selected_run_status = "FINISHED"
 
 # Main page columns
 col1, col2, col3 = st.columns(3)
@@ -123,9 +250,9 @@ with col1:
 with col2:
     st.markdown("""
         <div class="metric-card">
-            <h3>Modèles de Prédiction</h3>
+            <h3>Modèle de Prédiction</h3>
             <h2 style="color: #059669;">ST-GRU-GNN</h2>
-            <p>Spatiotemporel (MLflow & Skore)</p>
+            <p>Spatiotemporel (MLflow)</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -140,42 +267,58 @@ with col3:
 
 st.write("---")
 
-tab1, tab2 = st.tabs(["🗺️ Visualisation Temps Réel", "📊 Performances & Analyse du Modèle (STGCN)"])
+# Reordered Tabs: Learning curves/performances are in Tab 1 (Default Active Tab)
+tab1, tab2, tab3 = st.tabs([
+    "📈 Courbes d'Apprentissage (Perte & MAE)", 
+    "🎯 Analyse d'Erreur Stratifiée", 
+    "🗺️ Visualisation Temps Réel"
+])
 
 with tab1:
-    st.subheader("État du réseau routier en temps réel")
-    st.info("Les données d'ingestion et de prédiction s'afficheront ici dès que le premier cycle d'orchestration Airflow aura complété l'ingestion bronze et la transformation silver.")
+    st.subheader("📈 Courbes d'Apprentissage (Évolution de la Perte & MAE par Époque)")
+    st.markdown("""
+    Visualisez ci-dessous l'évolution de la **perte d'entraînement normalisée (MSE)** et de l'**erreur absolue moyenne (MAE)** de validation (exprimée en km/h) calculées à chaque époque.
+    """)
+    
+    df_metrics = get_mlflow_metrics_history_for_run(selected_run_id)
+    ideal_plot_path = "trash/ideal.png"
+    fallback_plot_path = "trash/model_metrics.png"
+    
+    if df_metrics is not None and not df_metrics.empty:
+        st.success(f"🟢 Courbes d'apprentissage chargées en temps réel depuis MLflow pour l'entraînement : `{selected_run_name}` (`{selected_run_id}`).")
+        fig_curves = plot_training_curves(df_metrics)
+        st.plotly_chart(fig_curves, use_container_width=True)
+    elif os.path.exists(ideal_plot_path):
+        st.info("💡 Chargement du graphique de performance historique de référence (Cible finale de production).")
+        st.image(ideal_plot_path, caption="Courbe d'apprentissage de référence (Idéal de production)", use_container_width=True)
+    elif os.path.exists(fallback_plot_path):
+        st.warning("⚠️ Chargement des métriques de référence initiales.")
+        st.image(fallback_plot_path, caption="Courbe d'apprentissage initiale (STGCN de base)", use_container_width=True)
+    else:
+        st.error("❌ Aucun historique de performance n'a pu être trouvé (ni dynamique dans MLflow, ni statique sur le disque).")
 
 with tab2:
-    st.subheader("Analyse d'Erreur Stratifiée du Modèle de Production")
+    st.subheader("🎯 Analyse d'Erreur Stratifiée (Dernier Modèle)")
     st.markdown("""
-    Cette vue présente l'évaluation détaillée des performances réelles du dernier modèle de Deep Learning géométrique **Spatio-Temporal GNN (ST-GRU-GNN)** entraîné sur les données de la Métropole de Lyon.
-    
-    Le graphique est découpé en 4 analyses clés pour garantir l'honnêteté et la transparence scientifique de notre modèle :
-    1. **MAE par tranche de vitesse** : Évaluation de la précision du modèle selon l'état du trafic (embouteillages/ralentissements vs trafic fluide).
-    2. **Biais de prédiction systématique** : Identification des zones de sur-estimation (vitesse prédite > réelle) ou de sous-estimation.
-    3. **Dispersion et Incertitude** : Analyse de l'écart-type des prédictions et de l'incertitude sur les résidus d'erreurs.
-    4. **Boîtes à moustaches (Boxplots)** : Comparaison de la distribution statistique des prédictions du modèle par rapport à la réalité physique du terrain.
+    Cette vue présente l'évaluation fine de la précision réelle du modèle découpée en 4 analyses clés pour garantir l'honnêteté et la transparence scientifique :
+    1. **MAE par tranche de vitesse** : Évaluation selon l'état du trafic (embouteillages/ralentissements vs trafic fluide).
+    2. **Biais de prédiction systématique** : Détection des zones de sur-estimation ou de sous-estimation de la vitesse.
+    3. **Dispersion et Incertitude** : Analyse de l'écart-type des prédictions et des résidus d'erreurs.
+    4. **Boîtes à moustaches (Boxplots)** : Distribution statistique des vitesses prédites par rapport à la réalité terrain.
     """)
-
+    
     latest_plot_path = "models/stratified_error_analysis.png"
-    fallback_plot_path = "trash/model_metrics.png"
-    ideal_plot_path = "trash/ideal.png"
-
-    # Attempt to pull from MLflow dynamically
-    mlflow_plot_path, run_id, run_name = get_mlflow_artifact_plot()
-
+    mlflow_plot_path = get_mlflow_artifact_plot_for_run(selected_run_id)
+    
     if mlflow_plot_path and os.path.exists(mlflow_plot_path):
-        st.success(f"🟢 Graphique de performance récupéré dynamiquement depuis MLflow (Run: `{run_id}` | `{run_name}`).")
-        st.image(mlflow_plot_path, caption=f"Analyse d'erreur stratifiée - MLflow (Run ID: {run_id})", use_container_width=True)
+        st.success(f"🟢 Diagnostic stratifié d'erreur récupéré depuis MLflow (Run: `{selected_run_id[:8]}`).")
+        st.image(mlflow_plot_path, caption=f"Analyse d'erreur stratifiée - MLflow (Run ID: {selected_run_id[:8]})", use_container_width=True)
     elif os.path.exists(latest_plot_path):
-        st.success("🟢 Graphique de performance généré localement par le dernier entraînement de production.")
-        st.image(latest_plot_path, caption="Analyse d'erreur stratifiée - Modèle Actuel (Généré en production locale)", use_container_width=True)
-    elif os.path.exists(ideal_plot_path):
-        st.info("💡 Aucun entraînement personnalisé n'a encore été finalisé sur cette machine. Affichage du graphique de performance idéal de référence.")
-        st.image(ideal_plot_path, caption="Analyse d'erreur stratifiée de référence (Cible finale)", use_container_width=True)
-    elif os.path.exists(fallback_plot_path):
-        st.warning("⚠️ Aucun entraînement personnalisé n'a encore été finalisé. Affichage des métriques de référence initiales.")
-        st.image(fallback_plot_path, caption="Analyse de performance initiale (STGCN de base)", use_container_width=True)
+        st.success("🟢 Diagnostic stratifié d'erreur récupéré localement.")
+        st.image(latest_plot_path, caption="Analyse d'erreur stratifiée - Génération locale", use_container_width=True)
     else:
-        st.error("❌ Aucun graphique de performance de référence n'a pu être localisé dans l'espace de travail.")
+        st.info("💡 Le diagnostic d'erreur stratifiée sera généré lors du prochain entraînement final de production.")
+
+with tab3:
+    st.subheader("🗺️ État du réseau routier en temps réel")
+    st.info("Les données d'ingestion et de prédiction s'afficheront ici dès que le premier cycle d'orchestration Airflow aura complété l'ingestion bronze et la transformation silver.")

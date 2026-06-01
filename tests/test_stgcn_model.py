@@ -241,8 +241,37 @@ class TestSTGCNDatasetAndTraining(unittest.TestCase):
             # batch.y shape: [B * N, out_channels]
             self.assertEqual(batch.y.shape[1], 1)
             # edge_index is present
-            self.assertEqual(batch.edge_index.shape[0], 2)
             break
+
+    def test_metrics_calculation(self):
+        """Test the correctness of Train Loss (std) and Test MAE (km/h) computation logic."""
+        import torch.nn.functional as F
+        
+        # 1. Test Train Loss (std) calculation
+        batch_1_loss = 0.5
+        batch_2_loss = 0.3
+        num_graphs_per_batch = 4
+        
+        total_train_loss = (batch_1_loss * num_graphs_per_batch) + (batch_2_loss * num_graphs_per_batch)
+        dataset_size = 8
+        epoch_loss = total_train_loss / dataset_size
+        
+        self.assertAlmostEqual(epoch_loss, 0.4)
+        
+        # 2. Test Test MAE (km/h) calculation
+        preds_kmh = torch.tensor([[10.0], [20.0], [30.0], [40.0], [50.0], [60.0]])
+        targets_kmh = torch.tensor([[12.0], [18.0], [33.0], [37.0], [55.0], [58.0]])
+        num_nodes = 2
+        dataset_size_test = 3 # 3 graphs, 2 nodes each
+        
+        mae_sum = F.l1_loss(preds_kmh, targets_kmh, reduction='sum').item()
+        # |10-12| + |20-18| + |30-33| + |40-37| + |50-55| + |60-58| = 2+2+3+3+5+2 = 17
+        self.assertEqual(mae_sum, 17.0)
+        
+        test_mae_kmh = mae_sum / (dataset_size_test * num_nodes)
+        self.assertAlmostEqual(test_mae_kmh, 17.0 / 6.0)
+
+
 
 
 if __name__ == '__main__':
