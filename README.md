@@ -68,7 +68,7 @@ Le comportement de STGCN est hautement sensible à ses hyperparamètres (nombre 
 
 ---
 
-## 🏗️ Stack Technologique & Écosystème MLOps
+## Stack Technologique & Écosystème MLOps
 
 La plateforme orchestre plusieurs conteneurs isolés via Docker Compose :
 
@@ -80,7 +80,7 @@ La plateforme orchestre plusieurs conteneurs isolés via Docker Compose :
 
 ---
 
-## ⚡ Guide de Démarrage Rapide
+## Guide de Démarrage Rapide
 
 ### 1. Lancement de la plateforme MLOps
 Assurez-vous que Docker Desktop (avec backend WSL2) est démarré, puis exécutez à la racine du projet :
@@ -98,27 +98,42 @@ docker-compose up -d --build
 | **📈 Optuna Dashboard** | [http://localhost:8085](http://localhost:8085) | Visualisation bayésienne des hyperparamètres |
 | **⚡ Ray Dashboard** | [http://localhost:8265](http://localhost:8265) | Monitoring du cluster de calcul distribué |
 
-### 3. Amorçage de l'historique de 30 jours (Données de Patrick)
-Pour alimenter proprement votre base Postgres Gold locale à partir des fichiers plats CSV historiques (`edges.csv`, `node_mapping.csv`, `traffic_series.csv`) et mettre à jour la vue pivotée :
-
-1. Déposez les 3 fichiers CSV dans le dossier `data/raw/` de votre projet.
-2. Exécutez le script d'ingestion depuis votre machine :
-```powershell
-# Test à blanc (Dry-run de sécurité pour valider la structure)
-python utils/import_gold_from_csv.py --dry-run
-
-# Import réel complet (recommandé avec sauvegarde Parquet)
-python utils/import_gold_from_csv.py
-
-# Import alternatif si votre disque C: est saturé (sans backup Parquet local)
-python utils/import_gold_from_csv.py --no-parquet
-```
-
-### 4. Exécuter l'entraînement du modèle (Ray Cluster)
-L'entraînement de notre modèle ST-GRU-GNN consomme directement les exports Parquet générés lors de l'étape d'ingestion historique, éliminant ainsi les goulots d'étranglement réseau de la base de données.
+### 3. Exécuter l'entraînement du modèle (Ray Cluster)
+L'entraînement de notre modèle ST-GRU-GNN consomme directement les exports csv générés lors de l'étape d'ingestion historique, éliminant ainsi les goulots d'étranglement réseau de la base de données.
 
 Pour lancer l'entraînement optimisé :
 ```powershell
 docker exec -it lyonflow-ray-head python /home/ray/project/training/stgcn/train_stgcn.py
 ```
 *(Remarque : Vous pouvez également exécuter l'entraînement directement sur le conteneur `lyonflow-ray-worker` selon vos allocations de calcul).*
+
+### 3. 🔐 Gestion des Connexions et Authentification (Sécurité)
+Pour garantir la robustesse et la sécurité des données, il est crucial de faire la distinction entre les différents types d'identifiants utilisés dans la plateforme LyonFlow :
+
+* **Identifiants de l'Interface Web d'Airflow** (Port `8080`) :
+  * Utilisés pour s'authentifier sur le panel d'administration Web d'Airflow.
+  * Valeurs par défaut : `xxx` / `yyyyyyy` (configurables dans le `.env` sous `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD`).
+* **Identifiants de la Base de Données PostgreSQL** (Port `5432`) :
+  * Utilisés pour la connexion physique et la lecture/écriture des flux de données.
+  * Valeurs par défaut : `zzzzz` / `zzzzzzzzzzzz` (configurables dans le `.env` sous `POSTGRES_USER` / `POSTGRES_PASSWORD`).
+
+> [!WARNING]
+> **Connexion `postgres_default` dans Airflow :**
+> La connexion `postgres_default` d'Airflow est utilisée par les pipelines de données et par les jobs Ray (comme `monitoring_evidently.py`) pour interroger la base de données.
+> Elle **doit impérativement** être configurée avec les identifiants PostgreSQL (`zzzzz` / `zzzzzzzzzzzz`), et **non** les identifiants d'administration Airflow (`xxx` / `yyyyyyy`). Une mauvaise configuration entraînera une erreur `FATAL: password authentication failed`.
+
+#### Commande de configuration de la connexion `postgres_default` :
+Si vous devez réinitialiser ou recréer cette connexion, exécutez la commande suivante à la racine :
+```powershell
+# Suppression de l'ancienne connexion incorrecte (si existante)
+docker exec lyonflow-airflow-scheduler airflow connections delete postgres_default
+
+# Création de la connexion correcte
+docker exec lyonflow-airflow-scheduler airflow connections add postgres_default `
+  --conn-type postgres `
+  --conn-host postgres `
+  --conn-login zzzzz `
+  --conn-password zzzzzzzzzzzz `
+  --conn-port 5432 `
+  --conn-schema lyonflow
+```
