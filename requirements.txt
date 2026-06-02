@@ -13,10 +13,11 @@ numpy
 pandas
 
 # Machine Learning, tracking, and scoring
-xgboost
-prophet
-skore
 mlflow
+evidently
+torch
+torch-geometric
+optuna
 
 # Visualisation and UI
 plotly==5.24.1
@@ -24,3 +25,4 @@ streamlit
 
 # tests
 pytest
+pydantic==2.13.4

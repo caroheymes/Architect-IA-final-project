@@ -31,10 +31,12 @@ graph TD
    * Interpolation des segments de route tous les **7 mètres** pour générer des coordonnées précises.
    * Indexation spatiale à l'aide de cellules **H3 (Résolution 13)**.
    * Normalisation et catégorisation des vitesses en temps réel.
-3. **Layer Gold (`gold`)** :
-   * `dim_spatial_grid_mapping` : Alignement des capteurs géographiques sur une grille relative $(i, j)$ constante.
-   * `dim_gnn_adjacency` : Construction dynamique de la matrice d'adjacence du graphe routier (connexion des capteurs adjacents).
-   * `fact_traffic_series` : Table temporelle de faits de vitesse interpolée et imputée (avec repli sur la moyenne historique par capteur en cas de valeur manquante) garantissant une entrée de taille constante $N$ pour l'apprentissage.
+3. **Layer Gold (`gold`) & Fichiers Plats (Parquet/CSV)** :
+   * `dim_spatial_grid_mapping` : Alignement des capteurs géographiques sur une grille relative $(i, j)$ constante (chargé via `node_mapping.csv`).
+   * `dim_gnn_adjacency` : Construction dynamique de la matrice d'adjacence du graphe routier (chargé via `edges.csv`).
+   * `fact_traffic_series` : Table temporelle de faits de vitesse interpolée et imputée (chargé via `traffic_series.csv`).
+   * **Vue Matérialisée (`mv_fact_traffic_pivot`)** : Pivot spatio-temporel rafraîchi après chaque import, servant de source d'inférence en temps réel pour Streamlit.
+   * **Sauvegardes Parquet (`data/processed/`)** : Export compressé haute performance des séries de trafic pour un entraînement ML "hors-ligne" optimisé (Ray charge directement ces fichiers plats, libérant ainsi les verrous et la bande passante de la base PostgreSQL).
 
 ---
 
@@ -74,7 +76,7 @@ La plateforme orchestre plusieurs conteneurs isolés via Docker Compose :
 * **Moteur d'Expérimentation (MLflow) :** Enregistre automatiquement chaque trial d'optimisation d'Optuna (paramètres, métriques de perte d'entraînement/validation, et artéfacts du modèle).
 * **Visualiseur HPO (Optuna Dashboard) :** Dashboard web complet dédié à l'étude d'hyperparamètres, affichant les analyses d'importance des paramètres, les coordonnées parallèles et les courbes de convergence.
 * **Interface Utilisateur (Streamlit) :** Une application interactive permettant aux décideurs d'observer l'état du réseau routier et d'accéder aux prévisions en temps réel.
-* **Réseau (ngrok) :** Fournit un tunnel sécurisé TCP pour exposer à distance la base PostgreSQL.
+
 
 ---
 
@@ -96,13 +98,27 @@ docker-compose up -d --build
 | **📈 Optuna Dashboard** | [http://localhost:8085](http://localhost:8085) | Visualisation bayésienne des hyperparamètres |
 | **⚡ Ray Dashboard** | [http://localhost:8265](http://localhost:8265) | Monitoring du cluster de calcul distribué |
 
-### 3. Exécuter l'entraînement du modèle
-Pour lancer l'entraînement final du modèle STGCN optimisé avec les meilleurs paramètres identifiés :
-```powershell
-docker exec -it lyonflow-ray-worker python /home/ray/project/training/stgcn/train_stgcn.py
-```
-docker ps --format "table {{.Names}}\t{{.Status}}"
-docker ps -f "name=ray-worker"
-docker exec -it f8db0d184d73_lyonflow-ray-worker python /home/ray/project/training/stgcn/train_stgcn.py
+### 3. Amorçage de l'historique de 30 jours (Données de Patrick)
+Pour alimenter proprement votre base Postgres Gold locale à partir des fichiers plats CSV historiques (`edges.csv`, `node_mapping.csv`, `traffic_series.csv`) et mettre à jour la vue pivotée :
 
-docker exec -it f8db0d184d73_lyonflow-ray-worker /home/ray/project/training/stgcn/train_stgcn.py
+1. Déposez les 3 fichiers CSV dans le dossier `data/raw/` de votre projet.
+2. Exécutez le script d'ingestion depuis votre machine :
+```powershell
+# Test à blanc (Dry-run de sécurité pour valider la structure)
+python utils/import_gold_from_csv.py --dry-run
+
+# Import réel complet (recommandé avec sauvegarde Parquet)
+python utils/import_gold_from_csv.py
+
+# Import alternatif si votre disque C: est saturé (sans backup Parquet local)
+python utils/import_gold_from_csv.py --no-parquet
+```
+
+### 4. Exécuter l'entraînement du modèle (Ray Cluster)
+L'entraînement de notre modèle ST-GRU-GNN consomme directement les exports Parquet générés lors de l'étape d'ingestion historique, éliminant ainsi les goulots d'étranglement réseau de la base de données.
+
+Pour lancer l'entraînement optimisé :
+```powershell
+docker exec -it lyonflow-ray-head python /home/ray/project/training/stgcn/train_stgcn.py
+```
+*(Remarque : Vous pouvez également exécuter l'entraînement directement sur le conteneur `lyonflow-ray-worker` selon vos allocations de calcul).*

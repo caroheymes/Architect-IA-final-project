@@ -20,12 +20,16 @@ RUN pip install --no-cache-dir --upgrade pip
 
 # Installation des dépendances classiques de données et tracking
 RUN pip install --no-cache-dir \
+    numpy \
+    pandas \
+    sqlalchemy \
     psycopg2-binary \
     scikit-learn \
     mlflow \
     matplotlib \
     optuna \
-    optuna-dashboard
+    optuna-dashboard \
+    evidently
 
 # Installation de PyTorch avec support CUDA 12.1 (compatible avec votre pilote hôte CUDA 12.8)
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121

@@ -5,30 +5,75 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-st.set_page_code_info = {"page_title": "LyonFlow - Traffic Prediction", "page_icon": "🚦", "layout": "wide"}
+st.set_page_config(
+    page_title="LyonFlow - Traffic Prediction",
+    page_icon="🚦",
+    layout="wide"
+)
 
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+    
+    /* Apply Outfit font to the entire application */
+    .stApp, .main-title, .subtitle, .metric-card {
+        font-family: 'Outfit', -apple-system, sans-serif !important;
+    }
+    
     .main-title {
-        font-size: 3rem;
-        color: #1E3A8A;
-        font-weight: 700;
+        font-size: 3.5rem;
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
         text-align: center;
         margin-bottom: 0.5rem;
+        letter-spacing: -0.02em;
     }
+    
     .subtitle {
-        font-size: 1.5rem;
+        font-size: 1.25rem;
         color: #4B5563;
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 2.5rem;
+        font-weight: 400;
     }
+    
     .metric-card {
-        background-color: #F3F4F6;
+        background-color: #FFFFFF;
         padding: 1.5rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border-radius: 0.75rem;
+        border: 1px solid #E5E7EB;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
         text-align: center;
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+        border-color: #3B82F6;
+    }
+    
+    .metric-card h3 {
+        font-size: 1.1rem;
+        color: #4B5563;
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+    
+    .metric-card h2 {
+        font-size: 2.2rem;
+        font-weight: 700;
+        margin: 0.5rem 0;
+    }
+    
+    .metric-card p {
+        font-size: 0.9rem;
+        color: #6B7280;
+        margin: 0;
     }
     </style>
 """,
@@ -330,9 +375,12 @@ with col3:
 st.write("---")
 
 # Reordered Tabs: Learning curves/performances are in Tab 1 (Default Active Tab)
-tab1, tab2, tab3 = st.tabs(
-    ["📈 Courbes d'Apprentissage (Perte & MAE)", "🎯 Analyse d'Erreur Stratifiée", "🗺️ Visualisation Temps Réel"]
-)
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📈 Courbes d'Apprentissage (Perte & MAE)", 
+    "🎯 Analyse d'Erreur Stratifiée", 
+    "📊 Observabilité & Dérive (Evidently AI)",
+    "🗺️ Visualisation Temps Réel"
+])
 
 with tab1:
     st.subheader("📈 Courbes d'Apprentissage (Évolution de la Perte & MAE par Époque)")
@@ -394,6 +442,159 @@ with tab2:
         st.info("💡 Le diagnostic d'erreur stratifiée sera généré lors du prochain entraînement final de production.")
 
 with tab3:
+    st.subheader("📊 Observabilité du Modèle & Dérive Temporelle (Evidently AI)")
+    st.markdown("""
+    Ce tableau de bord d'observabilité compare en continu la précision prédictive du modèle STGCN 
+    sur la tranche horaire critique de la pointe du matin (07h00 à 10h00) entre la veille (Référence, $J-1$) 
+    et aujourd'hui (Audit, $J$).
+    """)
+    
+    report_html_path = "data/out/monitoring_report_morning.html"
+    report_json_path = "data/out/monitoring_metrics_morning.json"
+    
+    # Lecture dynamique des métriques clés
+    mae_val = None
+    rmse_val = None
+    mape_val = None
+    r2_val = None
+    drift_p_val = None
+    drift_detected = None
+    drift_threshold = 0.05
+    
+    if os.path.exists(report_json_path):
+        try:
+            import json
+            with open(report_json_path, "r", encoding="utf-8") as fj:
+                metrics_data = json.load(fj)
+            
+            for metric in metrics_data.get("metrics", []):
+                metric_type = metric.get("config", {}).get("type", "")
+                metric_name = metric.get("metric_name", "")
+                if "MAE" in metric_type:
+                    mae_val = metric.get("value", {}).get("mean", None)
+                elif "RMSE" in metric_type:
+                    rmse_val = metric.get("value", None)
+                elif "MAPE" in metric_type:
+                    mape_val = metric.get("value", {}).get("mean", None)
+                elif "R2Score" in metric_type:
+                    r2_val = metric.get("value", None)
+                elif "ValueDrift" in metric_type or "ValueDrift" in metric_name:
+                    val_dict = metric.get("value", {})
+                    if isinstance(val_dict, dict):
+                        drift_p_val = val_dict.get("p_value") or val_dict.get("drift_score")
+                        drift_detected = val_dict.get("drift_detected")
+                        drift_threshold = val_dict.get("threshold", 0.05)
+        except Exception as ej:
+            st.sidebar.warning(f"⚠️ Impossible de parser les métriques JSON : {ej}")
+            
+    # Affichage du statut décisionnel de réentraînement (p-value)
+    if drift_p_val is not None:
+        st.markdown("### 🤖 Statut Décisionnel de Réentraînement (Test Kolmogorov-Smirnov)")
+        if drift_p_val < drift_threshold:
+            # ALERTE DÉRIVE : Rouge vibrant premium
+            st.markdown(f"""
+                <div style="background-color: #FEE2E2; border-left: 6px solid #DC2626; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    <h3 style="color: #991B1B; margin-top: 0; font-family: system-ui, -apple-system, sans-serif;">🚨 ALERTE MLOPS : Dérive de données détectée !</h3>
+                    <p style="color: #7F1D1D; font-size: 1.05rem; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
+                        Le test statistique de <b>Kolmogorov-Smirnov</b> appliqué sur les vitesses réelles de la matinée (cible <i>target</i>) 
+                        entre J-1 et J indique un décalage significatif des distributions.
+                    </p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 2rem; margin: 1.2rem 0; font-family: system-ui, -apple-system, sans-serif;">
+                        <div>
+                            <span style="font-size: 0.85rem; color: #991B1B; text-transform: uppercase; font-weight: bold; display: block; letter-spacing: 0.05em;">p-value calculée</span>
+                            <strong style="font-size: 1.8rem; color: #DC2626;">{drift_p_val:.4e}</strong>
+                        </div>
+                        <div style="border-left: 1px solid #FCA5A5; padding-left: 2rem;">
+                            <span style="font-size: 0.85rem; color: #991B1B; text-transform: uppercase; font-weight: bold; display: block; letter-spacing: 0.05em;">Seuil critique (α)</span>
+                            <strong style="font-size: 1.8rem; color: #7F1D1D;">{drift_threshold:.2f}</strong>
+                        </div>
+                        <div style="border-left: 1px solid #FCA5A5; padding-left: 2rem;">
+                            <span style="font-size: 0.85rem; color: #991B1B; text-transform: uppercase; font-weight: bold; display: block; letter-spacing: 0.05em;">Action Système</span>
+                            <strong style="font-size: 1.15rem; color: #B91C1C; background-color: #FEE2E2; padding: 0.4rem 0.8rem; border-radius: 0.375rem; border: 1px solid #DC2626; display: inline-block; margin-top: 0.3rem; font-weight: bold;">🔴 RÉENTRAÎNEMENT REQUIS</strong>
+                        </div>
+                    </div>
+                    <p style="color: #7F1D1D; margin-bottom: 0; font-style: italic; font-size: 0.95rem; font-family: system-ui, -apple-system, sans-serif;">
+                        ⚠️ La dynamique du réseau routier a changé par rapport à la veille. Le modèle actuel risque de perdre en précision. Un réentraînement automatique via le DAG d'orchestration Airflow est préconisé.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            # STATUT STABLE : Vert vibrant premium
+            st.markdown(f"""
+                <div style="background-color: #ECFDF5; border-left: 6px solid #10B981; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    <h3 style="color: #065F46; margin-top: 0; font-family: system-ui, -apple-system, sans-serif;">✅ STATUT MLOPS : Distributions stables</h3>
+                    <p style="color: #064E3B; font-size: 1.05rem; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
+                        Le test statistique de <b>Kolmogorov-Smirnov</b> appliqué sur les vitesses réelles de la matinée (cible <i>target</i>) 
+                        ne révèle aucun décalage de distribution significatif entre J-1 et J.
+                    </p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 2rem; margin: 1.2rem 0; font-family: system-ui, -apple-system, sans-serif;">
+                        <div>
+                            <span style="font-size: 0.85rem; color: #065F46; text-transform: uppercase; font-weight: bold; display: block; letter-spacing: 0.05em;">p-value calculée</span>
+                            <strong style="font-size: 1.8rem; color: #10B981;">{drift_p_val:.4f}</strong>
+                        </div>
+                        <div style="border-left: 1px solid #A7F3D0; padding-left: 2rem;">
+                            <span style="font-size: 0.85rem; color: #065F46; text-transform: uppercase; font-weight: bold; display: block; letter-spacing: 0.05em;">Seuil critique (α)</span>
+                            <strong style="font-size: 1.8rem; color: #064E3B;">{drift_threshold:.2f}</strong>
+                        </div>
+                        <div style="border-left: 1px solid #A7F3D0; padding-left: 2rem;">
+                            <span style="font-size: 0.85rem; color: #065F46; text-transform: uppercase; font-weight: bold; display: block; letter-spacing: 0.05em;">Décision Système</span>
+                            <strong style="font-size: 1.15rem; color: #047857; background-color: #D1FAE5; padding: 0.4rem 0.8rem; border-radius: 0.375rem; border: 1px solid #10B981; display: inline-block; margin-top: 0.3rem; font-weight: bold;">🟢 PRODUCTION ACTIVE (OK)</strong>
+                        </div>
+                    </div>
+                    <p style="color: #064E3B; margin-bottom: 0; font-style: italic; font-size: 0.95rem; font-family: system-ui, -apple-system, sans-serif;">
+                        ℹ️ Le comportement général du trafic routier reste en adéquation avec les données d'apprentissage historiques. Aucun réentraînement n'est requis.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    # Affichage des cartes d'indicateurs clés de performance
+    if mae_val is not None or rmse_val is not None or r2_val is not None:
+        st.markdown("### 🏆 Indicateurs de Performance de l'Audit (Matinée Courante)")
+        mc1, mc2, mc3, mc4 = st.columns(4)
+        
+        with mc1:
+            if mae_val is not None:
+                st.metric(
+                    label="MAE (Erreur Absolue Moyenne)", 
+                    value=f"{mae_val:.2f} km/h", 
+                    delta="Amélioration" if mae_val < 3 else None,
+                    delta_color="normal"
+                )
+        with mc2:
+            if rmse_val is not None:
+                st.metric(
+                    label="RMSE (Erreur Quadratique Moyenne)", 
+                    value=f"{rmse_val:.2f} km/h"
+                )
+        with mc3:
+            if mape_val is not None:
+                st.metric(
+                    label="MAPE (Erreur en % Moyenne)", 
+                    value=f"{mape_val:.2f} %"
+                )
+        with mc4:
+            if r2_val is not None:
+                st.metric(
+                    label="R² Score (Coefficient de Dét.)", 
+                    value=f"{r2_val:.4f}", 
+                    delta="Performance Optimale" if r2_val > 0.8 else None
+                )
+        st.markdown("<br>", unsafe_allow_html=True)
+    
+    if os.path.exists(report_html_path):
+        import streamlit.components.v1 as components
+        
+        st.success("🟢 Rapport d'observabilité de la pointe du matin (07h00 - 10h00) chargé avec succès.")
+        
+        with open(report_html_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            
+        components.html(html_content, height=1200, scrolling=True)
+    else:
+        st.info("💡 Le rapport de monitoring Evidently est en cours de génération ou sera produit automatiquement par le run quotidien d'Airflow.")
+        st.image("https://raw.githubusercontent.com/evidentlyai/evidently/main/docs/book/_static/evidently_logo.png", width=300)
+
+with tab4:
     st.subheader("🗺️ État du réseau routier en temps réel")
     st.info(
         "Les données d'ingestion et de prédiction s'afficheront ici dès que le premier cycle d'orchestration Airflow aura complété l'ingestion bronze et la transformation silver."

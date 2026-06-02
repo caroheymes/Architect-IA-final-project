@@ -231,26 +231,7 @@ services:
           cpus: '0.25'
           memory: 1G
 
-  # ==========================================
-  # 6. EXTERNAL ACCESS LAYER (ngrok Tunnel)
-  # ==========================================
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: ngrok_tunnel
-    ports:
-      - "4040:4040"
-    command: "tcp postgres:5432"
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '0.10'
-          memory: 256M
+
 
 volumes:
   postgres-data:

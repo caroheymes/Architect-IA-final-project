@@ -278,12 +278,28 @@ def run_backfill():
                         }
                     )
 
-    # 7. Insertion massive en base de données
+            # Insertion intermédiaire périodique pour éviter d'accumuler trop d'enregistrements en RAM (OOM de Ray)
+            if (idx + 1) % 15 == 0 and all_predictions_records:
+                df_temp = pd.DataFrame(all_predictions_records)
+                logger.info(f"📥 [Lots] Insertion intermédiaire de {len(df_temp)} lignes de prédictions (instants traités : {idx + 1}/{total_to_predict})...")
+                try:
+                    df_temp.to_sql(
+                        name="fact_predictions_traffic",
+                        con=engine,
+                        schema="gold",
+                        if_exists="append",
+                        index=False,
+                        chunksize=10000
+                    )
+                    all_predictions_records.clear()
+                except Exception as e:
+                    logger.error(f"❌ Erreur lors de l'insertion intermédiaire : {e}")
+                    sys.exit(1)
+
+    # 7. Insertion des derniers enregistrements restants
     if all_predictions_records:
         df_preds_all = pd.DataFrame(all_predictions_records)
-        logger.info(
-            f"📥 Insertion de {len(df_preds_all)} lignes de prédictions dans PostgreSQL (gold.fact_predictions_traffic)..."
-        )
+        logger.info(f"📥 Insertion finale de {len(df_preds_all)} lignes de prédictions dans PostgreSQL (gold.fact_predictions_traffic)...")
         try:
             df_preds_all.to_sql(
                 name="fact_predictions_traffic",
@@ -293,7 +309,7 @@ def run_backfill():
                 index=False,
                 chunksize=10000,
             )
-            logger.info("✅ Insertion en base de données effectuée avec succès.")
+            logger.info("✅ Insertion finale effectuée avec succès.")
         except Exception as e:
             logger.error(f"❌ Erreur lors de l'insertion finale dans la base de données : {e}")
             sys.exit(1)
