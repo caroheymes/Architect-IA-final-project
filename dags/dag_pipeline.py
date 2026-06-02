@@ -591,6 +591,77 @@ def materialize_gold_layer():
 
 
 # ============================================================================
+# EXTRA GNN PIPELINE PIPES
+# ============================================================================
+def export_to_csv_task():
+    """Exécute l'export de la base de données vers des CSV plats de manière séquentielle."""
+    from utils.export_db_to_csv import run_export
+    logger.info("Début de l'exportation de la couche Gold vers des CSV plats...")
+    os.environ["DATA_FOLDER"] = "/opt/airflow/project/data/in"
+    os.environ["POSTGRES_HOST"] = "postgres"
+    os.environ["SEQ_LEN_EXPORT"] = "150"
+    run_export()
+
+def trigger_stgcn_prediction_on_ray():
+    """Soumet le script d'inférence STGCN au cluster Ray et attend sa complétion."""
+    import requests
+    import time
+    
+    ray_dashboard_url = "http://ray-head:8265"
+    submit_url = f"{ray_dashboard_url}/api/jobs/"
+    
+    payload = {
+        "entrypoint": "cd /home/ray/project && python training/stgcn/predict_stgcn.py",
+        "runtime_env": {
+            "env_vars": {
+                "USE_LOCAL_CSV": "false",
+                "DATA_FOLDER": "/home/ray/project/data/in",
+                "DATA_FOLDER_OUT": "/home/ray/project/data/out",
+                "MODEL_PATH": "/home/ray/project/models/stgcn_prod_latest.pt",
+                "SCALER_PATH": "/home/ray/project/models/stgcn_scaler.pkl",
+                "SEQ_LEN": "120",
+                "HORIZONS": "6,12,36",
+                "POSTGRES_HOST": "postgres",
+                "POSTGRES_PORT": "5432",
+                "POSTGRES_USER": os.getenv("POSTGRES_USER", "lyonflow"),
+                "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD", "lyonflow_password"),
+                "POSTGRES_DB": os.getenv("POSTGRES_DB", "lyonflow")
+            }
+        }
+    }
+    
+    logger.info(f"Soumission du job de prédiction à Ray sur {submit_url}...")
+    response = requests.post(submit_url, json=payload, timeout=30)
+    response.raise_for_status()
+    job_data = response.json()
+    job_id = job_data["job_id"]
+    logger.info(f"Job Ray soumis avec succès. ID du Job : {job_id}")
+    
+    status_url = f"{ray_dashboard_url}/api/jobs/{job_id}"
+    while True:
+        time.sleep(10)
+        status_resp = requests.get(status_url, timeout=30)
+        status_resp.raise_for_status()
+        status_data = status_resp.json()
+        status = status_data["status"]
+        logger.info(f"État du Job Ray {job_id} : {status}")
+        
+        if status == "SUCCEEDED":
+            logger.info("🟢 Le Job Ray de prédiction STGCN a été complété avec succès !")
+            break
+        elif status in ["FAILED", "STOPPED"]:
+            error_msg = f"🔴 Le Job Ray de prédiction STGCN a échoué avec le statut : {status}."
+            logger.error(error_msg)
+            try:
+                logs_url = f"{ray_dashboard_url}/api/jobs/{job_id}/logs"
+                logs_resp = requests.get(logs_url, timeout=30)
+                if logs_resp.status_code == 200:
+                    logger.error(f"Logs du job Ray :\n{logs_resp.json().get('logs', '')}")
+            except Exception as e:
+                logger.warning(f"Impossible de récupérer les logs du job : {e}")
+            raise Exception(error_msg)
+
+# ============================================================================
 # AIRFLOW DAG ORCHESTRATION LAYOUT
 # ============================================================================
 default_args = {
@@ -628,5 +699,16 @@ with DAG(
         python_callable=materialize_gold_layer,
     )
 
+    export_task = PythonOperator(
+        task_id='export_gold_to_csv',
+        python_callable=export_to_csv_task,
+    )
+
+    predict_task = PythonOperator(
+        task_id='stgcn_predict_on_ray',
+        python_callable=trigger_stgcn_prediction_on_ray,
+    )
+
     # Define sequential dependency
-    ingest_task >> transform_task >> gold_task
+    ingest_task >> transform_task >> gold_task >> export_task >> predict_task
+

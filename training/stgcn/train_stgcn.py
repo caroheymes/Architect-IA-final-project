@@ -59,22 +59,37 @@ def train_model():
     except Exception as e:
         logger.warning(f"⚠️ MLflow server unavailable at {MLFLOW_URL} ({e}). Running locally.")
 
-    # 3. Load topology and facts
-    logger.info("📡 Loading spatial topology and traffic timeseries from Postgres...")
-    num_nodes, edge_index = load_graph_topology(engine)
-    vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = load_traffic_series(engine)
+    # 3. Load topology and facts (Auto-détection CSV local ou Postgres)
+    USE_LOCAL_CSV = os.getenv("USE_LOCAL_CSV", "false").lower() == "true"
+    DATA_FOLDER = os.getenv("DATA_FOLDER", "/home/ray/project/data/in")
+
+    if USE_LOCAL_CSV:
+        logger.info(f"📁 Chargement local depuis les fichiers CSV du volume Docker dans {DATA_FOLDER}...")
+        from dataset import load_graph_topology_from_csv, load_traffic_series_from_csv
+        num_nodes, edge_index = load_graph_topology_from_csv(DATA_FOLDER)
+        vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = load_traffic_series_from_csv(DATA_FOLDER)
+    else:
+        logger.info("📡 Chargement en direct depuis la base de données PostgreSQL...")
+        num_nodes, edge_index = load_graph_topology(engine)
+        vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = load_traffic_series(engine)
     logger.info(f"✅ Graphe chargé : {num_nodes} nœuds, {edge_index.shape[1]} arêtes.")
 
-    # 4. Build PyG loaders
+    # 4. Build PyG loaders & prediction horizons configuration
+    # Les horizons sont exprimés en nombre de pas de temps de 5 min :
+    # Par exemple, HORIZONS="6,12,36" correspond à 30 min (6 pas), 1h (12 pas), 3h (36 pas)
+    HORIZONS_STR = os.getenv("HORIZONS", "1")
+    HORIZONS = [int(h) for h in HORIZONS_STR.split(",") if h.strip()]
+    logger.info(f"🔮 Horizons de prédiction configurés : {HORIZONS} ({[h * 5 for h in HORIZONS]} minutes)")
+
     train_loader, test_loader, scaler = build_sliding_dataset(
         vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos,
         seq_len=SEQ_LEN, edge_index_tensor=edge_index, num_nodes=num_nodes,
-        test_split=0.2, batch_size=BATCH_SIZE
+        test_split=0.2, batch_size=BATCH_SIZE, horizons=HORIZONS
     )
 
     # 5. Model initialization
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = SpatioTemporalGCN(in_channels=5, hidden_channels=HIDDEN_CHANNELS, out_channels=1).to(device)
+    model = SpatioTemporalGCN(in_channels=5, hidden_channels=HIDDEN_CHANNELS, out_channels=len(HORIZONS)).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     
     # Push scaler params to GPU for fast on-the-fly denormalization in loss computation
@@ -153,7 +168,7 @@ def train_model():
                     
                     mae_metric += F.l1_loss(preds_kmh, targets_kmh, reduction='sum').item()
                     
-            test_mae_kmh = mae_metric / (len(test_loader.dataset) * num_nodes)
+            test_mae_kmh = mae_metric / (len(test_loader.dataset) * num_nodes * len(HORIZONS))
             
             # Log metrics to console and MLflow
             logger.info(f"Epoch {epoch:02d}/{EPOCHS} | Train Loss (std): {epoch_loss:.4f} | Test MAE (km/h): {test_mae_kmh:.4f}")
@@ -167,10 +182,13 @@ def train_model():
                 best_epoch = epoch
                 best_model_state = {k: v.cpu() for k, v in model.state_dict().items()}
                 
-                # Save best model checkpoint
+                # Save best model checkpoint & scaler
                 os.makedirs("models", exist_ok=True)
                 torch.save(model.state_dict(), "models/stgcn_prod_latest.pt")
-                logger.info(f"🏆 New best model found at epoch {epoch:02d} with Test MAE: {best_test_mae:.4f} km/h.")
+                import pickle
+                with open("models/stgcn_scaler.pkl", "wb") as f:
+                    pickle.dump(scaler, f)
+                logger.info(f"🏆 New best model and scaler saved at epoch {epoch:02d} with Test MAE: {best_test_mae:.4f} km/h.")
             else:
                 patience_counter += 1
                 if patience_counter >= patience:
