@@ -30,6 +30,14 @@ _segment_spatial_cache = {}
 
 
 def h3shape_merge_cached(h3_id_list):
+    """Variante cachée de la fusion de cellules H3 (cf. autres modules).
+
+    Args:
+        h3_id_list (list[str]): Liste d'IDs H3 (rés. 13).
+
+    Returns:
+        shapely.geometry.Polygon | None: Polygone fusionné, ou `None`.
+    """
     if not h3_id_list:
         return None
     unique_hexes = sorted(list(set(h3_id_list)))
@@ -49,6 +57,21 @@ def h3shape_merge_cached(h3_id_list):
 
 
 def test_runs():
+    """Mesure le hit rate du cache spatial `_segment_spatial_cache` sur les 5 plus vieux snapshots Bronze.
+
+    Pour chaque snapshot :
+      1. Charge les features.
+      2. Filtre `est_a_jour != False`, construit le DataFrame.
+      3. Pour chaque segment, tente de récupérer
+         `(points, hexes, merged_geom)` dans le cache (clé = `gid` ou
+         tuple de coords).
+      4. Sur cache miss, recalcule l'interpolation, l'indexation H3 et la
+         fusion, puis stocke le résultat dans le cache.
+      5. Log un récapitulatif `hits / misses / hit_rate` par snapshot.
+
+    Sert à valider que le gain x350 observé par `profile_rebuild.py` est
+    bien réel sur des snapshots consécutifs (test terrain).
+    """
     engine = create_engine(DATABASE_URL)
     query = text("SELECT id, fetched_at, raw_data FROM bronze.trafic_vitesse_brute ORDER BY fetched_at ASC LIMIT 5;")
     with engine.begin() as conn:

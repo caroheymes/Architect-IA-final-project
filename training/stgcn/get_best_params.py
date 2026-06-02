@@ -22,6 +22,13 @@ MLFLOW_URL = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 
 
 def get_params_from_optuna():
+    """Récupère les meilleurs hyperparamètres depuis la base Optuna (PostgreSQL).
+
+    Returns:
+        dict | None: Dictionnaire des meilleurs hyperparamètres (`study.best_params`),
+        ou `None` si Optuna n'est pas installé, si l'étude `lyonflow_stgcn_tuning_v1`
+        n'existe pas, ou si la connexion DB échoue.
+    """
     if optuna is None:
         print("# optuna is not installed on this host. Skipping database check.")
         return None
@@ -36,6 +43,17 @@ def get_params_from_optuna():
 
 
 def get_params_from_mlflow():
+    """Fallback : récupère les meilleurs hyperparamètres via l'API MLflow.
+
+    Cherche dans l'expérience `LyonFlow-STGCN-Optuna-Tuning` le run avec
+    la plus petite `metrics.best_mae_kmh`, puis reconvertit les valeurs
+    stringifiées des paramètres en `int`/`float`/`str`.
+
+    Returns:
+        dict | None: Dictionnaire des hyperparamètres du meilleur run, ou
+        `None` si MLflow n'est pas dispo, si l'expérience n'existe pas, ou
+        si elle ne contient aucun run.
+    """
     if mlflow is None:
         print("# mlflow is not installed on this host. Skipping MLflow tracking check.")
         return None
@@ -73,6 +91,21 @@ def get_params_from_mlflow():
 
 
 def main():
+    """Point d'entrée : récupère les hyperparamètres du champion et les exporte en shell.
+
+    Logique :
+      1. Tente d'abord Optuna (source de vérité).
+      2. Sinon, fallback sur MLflow.
+      3. Si rien n'est trouvé, imprime des valeurs par défaut « sûres ».
+
+    Post-traitements appliqués sur les hyperparamètres récupérés :
+      - `seq_len` forcé à **120** (taille d'entrée du champion).
+      - `batch_size` plafonné à **16** (sécurité VRAM).
+      - `lr` est réécrit en `LEARNING_RATE` (convention du script
+        `train_stgcn.py`).
+
+    Sortie : un ensemble de lignes `export KEY=VALUE` à sourcer dans un shell.
+    """
     print("# Searching for the Champion Model's hyperparameters...")
 
     # 1. Try to read directly from PostgreSQL Optuna storage (the direct source of truth)

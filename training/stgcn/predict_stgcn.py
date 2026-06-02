@@ -57,9 +57,23 @@ HORIZONS = [int(h) for h in HORIZONS_STR.split(",") if h.strip()]
 
 
 def init_database_table(engine):
-    """
-    Initialise la table de stockage des prédictions gold.fact_predictions_traffic.
-    Crée le schéma et la table avec les index géographiques et temporels si nécessaire.
+    """Crée la table `gold.fact_predictions_traffic` et ses index si nécessaire.
+
+    Schéma de la table :
+      - `prediction_timestamp` : `t_0` (date d'origine de la prédiction).
+      - `target_timestamp`     : `t_0 + horizon` (date cible).
+      - `horizon_minutes`      : horizon en minutes (5 × nb de pas).
+      - `node_idx`, `properties_twgid`, `geometry_wgs84_wkt` : identifiants nœud.
+      - `predicted_speed`, `real_speed` (optionnel) : km/h.
+      - `created_at`           : horodatage serveur.
+
+    Index créés :
+      - `(prediction_timestamp, horizon_minutes)` : accélère les requêtes
+        « dernière prédiction pour chaque horizon ».
+      - `(properties_twgid)` : accélère les jointures avec `silver.ref_segments`.
+
+    Args:
+        engine (sqlalchemy.Engine): Engine SQLAlchemy pointant sur la DB Gold.
     """
     with engine.begin() as conn:
         logger.info("🛠️ Initialisation de la table gold.fact_predictions_traffic...")
@@ -94,6 +108,24 @@ def init_database_table(engine):
 
 
 def run_prediction():
+    """Pipeline complet d'inférence STGCN pour un cycle de prédiction.
+
+    Étapes :
+      1. Charge les 120 derniers pas de temps (`SEQ_LEN`) + topologie, soit
+         depuis les CSV (`USE_LOCAL_CSV=true`) soit depuis PostgreSQL.
+      2. Vérifie qu'on a assez d'historique (`sys.exit(1)` sinon).
+      3. Charge le `StandardScaler` fitté à l'entraînement (fallback : fit
+         temporaire sur l'échantillon courant, sous-optimal).
+      4. Construit le tenseur PyG `[N, SEQ_LEN, 5]` puis charge le modèle
+         et bascule en `eval()`.
+      5. Inference + dénormalisation scaler → km/h + clip `[1, 130]`.
+      6. Pour chaque nœud × horizon, construit un enregistrement
+         (prediction_timestamp, target_timestamp, predicted_speed, real_speed, geom).
+      7. Sauvegarde locale dans `$DATA_FOLDER_OUT/predictions_traffic.csv`.
+      8. Si mode DB, crée la table si besoin (`init_database_table`) et
+         `to_sql(..., if_exists="append")`.
+      9. Affiche un échantillon console des 10 premières lignes.
+    """
     logger.info("====================================================================")
     logger.info("🚀 Démarrage du pipeline de prédiction STGCN (Inférence)...")
     logger.info("====================================================================")

@@ -13,6 +13,18 @@ _h3shape_cache = {}
 
 
 def h3shape_merge_cached(h3_id_list):
+    """Variante de `h3shape_merge_cached` avec cache module-level, utilisée ici à des fins de benchmark.
+
+    Mêmes règles que dans `utils/profile_rebuild.py` :
+      - clé = `tuple(sorted(set(h3_id_list)))` (insensible à l'ordre et aux doublons)
+      - valeur = polygone Shapely mis en cache
+
+    Args:
+        h3_id_list (list[str]): Liste d'identifiants H3 (rés. 13).
+
+    Returns:
+        shapely.geometry.Polygon | None: Polygone fusionné ou `None`.
+    """
     if not h3_id_list:
         return None
     # Sort to ensure tuple key is stable

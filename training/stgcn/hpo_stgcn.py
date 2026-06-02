@@ -32,14 +32,53 @@ traffic_data = None
 
 
 def get_db_url():
+    """Construit l'URL SQLAlchemy PostgreSQL à partir des variables d'environnement.
+
+    Returns:
+        str: URL de la forme `postgresql+psycopg2://user:pass@host:port/db`.
+    """
     return f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 
 def get_engine():
+    """Crée un SQLAlchemy `Engine` à partir de `get_db_url()`.
+
+    Returns:
+        sqlalchemy.Engine: Engine prêt à l'emploi.
+    """
     return create_engine(get_db_url())
 
 
 def objective(trial):
+    """Fonction objectif Optuna — un trial d'optimisation bayésienne.
+
+    Le sampler TPE explore l'espace des hyperparamètres suivant :
+      - `lr` ∈ [1e-4, 1e-2] (log)
+      - `hidden_channels` ∈ {64, 128, 256}
+      - `weight_decay` ∈ [1e-6, 1e-4] (log)
+      - `seq_len` ∈ {6, 12, 18, 24} pas (30 min, 1h, 1h30, 2h)
+      - `batch_size` ∈ {8, 16}
+      - `weight_jam` ∈ [5, 20] et `weight_slow` ∈ [2, 8] :
+        pondérations de la loss pour les embouteillages et les ralentissements.
+
+    Pour chaque trial :
+      1. Construit les loaders PyG avec les hyperparamètres.
+      2. Entraîne pendant `max_epochs=15` (rapide pour HPO).
+      3. Dénormalise les prédictions vers km/h pour appliquer la loss
+         pondérée « en escalier » et calcule la MAE en km/h.
+      4. `trial.report(...)` + `trial.should_prune()` → élagage agressif
+         des trials médiocres via `MedianPruner`.
+
+    Args:
+        trial (optuna.Trial): Trial Optuna courant.
+
+    Returns:
+        float: MAE (km/h) sur le set de test à la fin de l'entraînement.
+
+    Raises:
+        optuna.exceptions.TrialPruned: Si le MedianPruner décide d'arrêter
+        le trial avant la fin.
+    """
     global topology_data, traffic_data
 
     # 1. Sample Hyperparameters via Bayesian Search (TPE)
@@ -132,6 +171,26 @@ def objective(trial):
 
 
 def run_hpo():
+    """Lance l'étude d'optimisation bayésienne Optuna (HPO).
+
+    Étapes :
+      1. **Warm-up du cache module-level** : on charge la topologie et les
+         séries temporelles **une seule fois** dans `topology_data` /
+         `traffic_data`, puis tous les trials réutilisent ce cache (gain
+         massif sur le temps d'HPO : on évite N requêtes DB).
+      2. Setup MLflow tracking (experiment `LyonFlow-STGCN-Optuna-Tuning`).
+      3. Storage Optuna = PostgreSQL via `RDBStorage` pour permettre le
+         scaling multi-worker et la reprise après crash.
+      4. `optuna.create_study` avec :
+         - `direction="minimize"` (on minimise la MAE),
+         - `MedianPruner(n_startup_trials=5, n_warmup_steps=3)` pour
+           l'élagage précoce,
+         - `load_if_exists=True` pour reprendre une étude existante.
+      5. `study.optimize(objective, n_trials=20)` puis log des meilleurs
+         hyperparamètres et de la MAE dans MLflow.
+
+    Imprime à la fin la commande pour lancer le dashboard Optuna.
+    """
     global topology_data, traffic_data
     logger.info("🚀 Initializing STGCN Hyperparameter Tuning...")
 

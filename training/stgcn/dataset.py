@@ -7,9 +7,24 @@ from torch_geometric.loader import DataLoader
 
 
 def load_graph_topology(engine):
-    """
-    Loads nodes mapping and GNN adjacency from PostgreSQL gold layer
-    and builds PyTorch Geometric edge index with self-loops.
+    """Charge la topologie du graphe routier depuis la couche Gold (PostgreSQL).
+
+    Lit deux tables :
+      - `gold.dim_spatial_grid_mapping` pour la liste ordonnée des nœuds
+        (permet d'indexer les features).
+      - `gold.dim_gnn_adjacency` pour les arêtes du graphe (sens `u → v`).
+
+    Construit l'`edge_index` au format PyG :
+      - ajoute les arêtes dans les deux sens (`u→v` et `v→u`) car
+        l'adjacence Gold est non-dirigée ;
+      - ajoute une self-loop par nœud pour stabiliser la propagation GCN.
+
+    Args:
+        engine (sqlalchemy.Engine): Engine SQLAlchemy pointant sur la base.
+
+    Returns:
+        tuple[int, torch.Tensor]: `(num_nodes, edge_index)` où `edge_index`
+        est de shape `[2, 2*E + N]` (`E` = nb d'arêtes, `N` = nb de nœuds).
     """
     df_mapping = pd.read_sql(
         "SELECT node_idx, properties_twgid FROM gold.dim_spatial_grid_mapping ORDER BY node_idx ASC;", con=engine
@@ -31,9 +46,25 @@ def load_graph_topology(engine):
 
 
 def load_traffic_series(engine):
-    """
-    Loads full speed facts series, pivots them into a (timestamps, nodes) matrix,
-    and extracts cyclical temporal features (sine/cosine of hour and day of week).
+    """Charge les séries de vitesse et calcule les features temporelles cycliques.
+
+    Pipeline :
+      1. Lit `gold.fact_traffic_series` (long format).
+      2. Pivote en matrice `[Timestamps × Nodes]` (`vitesse_matrix_raw`).
+      3. Remplace les NaN par la vitesse par défaut (`LYON_DEFAULT_SPEED`,
+         30 km/h) pour garantir une matrice dense.
+      4. Calcule 4 features temporelles cycliques (encodage sin/cos pour
+         éviter la discontinuité entre 23h et 0h, et entre dimanche et lundi) :
+         - `hour_sin`, `hour_cos` (période 24 h)
+         - `day_sin`,  `day_cos`  (période 7 jours)
+
+    Args:
+        engine (sqlalchemy.Engine): Engine SQLAlchemy.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        `(vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos)`.
+        `vitesse_matrix_raw` est de shape `[T, N]`, les 4 autres de shape `[T]`.
     """
     df_facts = pd.read_sql(
         "SELECT timestamp, node_idx, properties_vitesse FROM gold.fact_traffic_series ORDER BY timestamp ASC, node_idx ASC;",
@@ -71,10 +102,32 @@ def build_sliding_dataset(
     batch_size=16,
     horizons=[1],
 ):
-    """
-    Builds a sliding window Spatio-Temporal PyTorch Geometric dataset.
-    Supports multi-horizon prediction (e.g. predicting multiple future steps at once).
-    Splits chronologically (e.g. 80/20) and returns train/test DataLoaders and the fitted StandardScaler.
+    """Construit le dataset glissant multi-horizon au format PyTorch Geometric.
+
+    Pour chaque pas de départ `t`, on crée un objet `Data` PyG avec :
+      - `x` de shape `[N, seq_len, 5]` : `[speed, hour_sin, hour_cos, day_sin, day_cos]`
+        (la vitesse est standardisée via `StandardScaler.fit_transform`).
+      - `edge_index` partagé (réutilisé sur tous les samples).
+      - `y` de shape `[N, len(horizons)]` : la vitesse future à chaque horizon
+        (`t + seq_len - 1 + h` pour chaque `h` dans `horizons`).
+
+    Le split train/test est **chronologique** (pas aléatoire) pour respecter
+    la nature temporelle du problème.
+
+    Args:
+        vitesse_matrix_raw (np.ndarray): Matrice `[T, N]` des vitesses brutes (km/h).
+        hour_sin/cos, day_sin/cos (np.ndarray): Vecteurs `[T]` de features cycliques.
+        seq_len (int): Longueur de la fenêtre d'entrée.
+        edge_index_tensor (torch.Tensor): `edge_index` PyG partagé.
+        num_nodes (int): Nombre de nœuds du graphe.
+        test_split (float): Proportion du set de test (défaut 0.2 = 80/20).
+        batch_size (int): Taille de batch pour les DataLoaders.
+        horizons (list[int]): Liste des horizons futurs à prédire (défaut `[1]`).
+
+    Returns:
+        tuple[DataLoader, DataLoader, StandardScaler]:
+        `(train_loader, test_loader, scaler)`. Le `scaler` est fitté sur tout
+        le dataset et doit être réutilisé à l'inférence pour déstandardiser.
     """
     scaler = StandardScaler()
     vitesse_matrix = scaler.fit_transform(vitesse_matrix_raw)
@@ -116,10 +169,17 @@ def build_sliding_dataset(
 
 
 def load_graph_topology_from_csv(folder_path):
-    """
-    Charge la correspondance des nœuds et l'adjacence GNN depuis des fichiers CSV locaux
-    et construit l'edge index de PyTorch Geometric avec des boucles sur soi-même.
-    Formulation impersonnelle pour la conformité de la documentation de projet.
+    """Variante CSV de `load_graph_topology` (mode fichier, sans PostgreSQL).
+
+    Lit `node_mapping.csv` et `edges.csv` produits par
+    `utils/export_db_to_csv.py`, puis construit l'`edge_index` PyG de la
+    même manière (arêtes bidirectionnelles + self-loops).
+
+    Args:
+        folder_path (str): Chemin du dossier contenant les deux CSV.
+
+    Returns:
+        tuple[int, torch.Tensor]: `(num_nodes, edge_index)`.
     """
     import os
 
@@ -145,10 +205,17 @@ def load_graph_topology_from_csv(folder_path):
 
 
 def load_traffic_series_from_csv(folder_path):
-    """
-    Charge les séries de vitesse de trafic depuis un fichier CSV local,
-    les pivote sous forme de matrice (timestamps, nodes) et extrait les composantes
-    cycliques de temps (sinus/cosinus de l'heure et du jour de la semaine).
+    """Variante CSV de `load_traffic_series` (mode fichier).
+
+    Lit `traffic_series.csv` (produit par `export_db_to_csv.py`), pivote
+    en matrice `[T × N]` et calcule les 4 features temporelles cycliques.
+
+    Args:
+        folder_path (str): Chemin du dossier contenant `traffic_series.csv`.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        `(vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos)`.
     """
     import os
 

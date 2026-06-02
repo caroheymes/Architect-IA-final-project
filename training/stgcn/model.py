@@ -17,18 +17,49 @@ class SpatioTemporalGCN(nn.Module):
     """
 
     def __init__(self, in_channels, hidden_channels, out_channels):
+        """Initialise les sous-modules du modèle ST-GRU-GNN.
+
+        Args:
+            in_channels (int): Nb de features d'entrée par pas de temps
+                (= 5 dans `build_sliding_dataset` : speed + 4 cycliques).
+            hidden_channels (int): Taille de l'état caché partagé entre GRU et GCN.
+            out_channels (int): Nb d'horizons prédits (= `len(horizons)`).
+        """
         super().__init__()
-        # Temporal encoder: GRU process per-node sequence
+        # Encodeur temporel : GRU traitant la séquence par nœud.
+        # Le batching PyG aplatit le batch en `[B*N, SEQ_LEN, in_channels]`,
+        # donc une seule GRU "multi-nœuds" traite tout le batch.
         self.temporal_gru = nn.GRU(input_size=in_channels, hidden_size=hidden_channels, num_layers=1, batch_first=True)
-        # Spatial encoder: GCN with self-loops
+        # Encodeur spatial : deux GCN avec self-loops (ajoutés dans le dataset).
         self.spatial_gcn1 = GCNConv(hidden_channels, hidden_channels)
         self.spatial_gcn2 = GCNConv(hidden_channels, hidden_channels)
 
-        # Fully connected regression layer
+        # Couche fully-connected de régression multi-horizon.
         self.fc = nn.Linear(hidden_channels, out_channels)
         self.relu = nn.LeakyReLU(0.2)
 
     def forward(self, x, edge_index):
+        """Passe forward du modèle.
+
+        Étapes :
+          1. **Encodage temporel** : la GRU consomme la fenêtre
+             `[B*N, SEQ_LEN, in_channels]` et on ne garde que le dernier
+             état caché `h_temp` (résumé de la dynamique temporelle).
+          2. **Convolution spatiale 1** : GCN propage l'info sur le graphe
+             routier, suivi d'une LeakyReLU et d'une **skip connection**
+             (`+ h_temp`) pour stabiliser la backprop.
+          3. **Convolution spatiale 2** : idem avec un skip depuis
+             `h_space1`.
+          4. **Tête de régression** : `Linear(hidden, out_channels)`
+             produit la prédiction `[B*N, out_channels]`.
+
+        Args:
+            x (torch.Tensor): Entrée `[B*N, SEQ_LEN, in_channels]`.
+            edge_index (torch.Tensor): `edge_index` PyG de shape `[2, 2*E + N]`.
+
+        Returns:
+            torch.Tensor: Prédictions de shape `[B*N, out_channels]`.
+        """
         # x shape: [B * N, SEQ_LEN, in_channels]
         gru_out, _ = self.temporal_gru(x)
         h_temp = gru_out[:, -1, :]  # Keep last step hidden state: [B * N, hidden_channels]

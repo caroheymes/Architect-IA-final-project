@@ -10,6 +10,19 @@ engine = create_engine(DATABASE_URL)
 
 
 def psql_insert_execute_values(table, conn, keys, data_iter):
+    """Méthode d'insertion `to_sql` optimisée via `execute_values` (insert batch multi-lignes).
+
+    Pandas `to_sql(method=...)` attend une fonction `(table, conn, keys, data_iter) -> None`.
+    On construit ici un `INSERT INTO ... VALUES %s` qui profite de la sérialisation
+    groupée de `psycopg2.extras.execute_values` (bien plus rapide que la boucle
+    par défaut de `to_sql`).
+
+    Args:
+        table (sqlalchemy.Table): Table cible (incluant le schéma).
+        conn (sqlalchemy.Connection): Connexion SQLAlchemy ouverte.
+        keys (list[str]): Noms des colonnes à insérer.
+        data_iter (iterable): Itérable de tuples de valeurs alignés sur `keys`.
+    """
     dbapi_conn = conn.connection
     with dbapi_conn.cursor() as cur:
         columns = ", ".join([f'"{k}"' for k in keys])
@@ -22,6 +35,19 @@ def psql_insert_execute_values(table, conn, keys, data_iter):
 
 
 def round_wkt(wkt_str):
+    """Arrondit toutes les coordonnées d'un WKT à 6 décimales (~ 11 cm à l'équateur).
+
+    Sert à « normaliser » deux géométries qui devraient être identiques mais
+    diffèrent de quelques décimales dues à des transformations successives de
+    CRS, afin de pouvoir les joindre par égalité stricte de chaîne.
+
+    Args:
+        wkt_str (str | None): WKT en entrée.
+
+    Returns:
+        str | None: WKT réécrit avec précision=6, ou `None` si l'entrée est
+        vide ou si le parsing échoue.
+    """
     if not wkt_str:
         return None
     try:
@@ -32,6 +58,24 @@ def round_wkt(wkt_str):
 
 
 def backfill_with_rounded_wkt():
+    """Backfill des colonnes `properties_gid` / `properties_twgid` par jointure WKT.
+
+    Problème résolu : après ingestion Bronze→Silver, certains segments n'ont
+    pas pu être rattachés à `silver.ref_segments` car leurs WKT diffèrent
+    de quelques décimales. Ce script :
+      1. Calcule un WKT « arrondi à 6 décimales » pour chaque ligne de
+         `silver.ref_segments` et de `silver.trafic_vitesse_propre`
+         (lignes où `properties_gid IS NULL`).
+      2. Dépose ces deux jeux de clés dans des tables temporaires
+         (`ref_segments_rounded`, `temp_silver_rounded`).
+      3. Exécute un `UPDATE ... FROM ... JOIN` qui réconcilie les lignes
+         Silver non matchées avec leur référence par égalité sur le WKT
+         arrondi.
+      4. Supprime les tables temporaires.
+
+    Affiche un récapitulatif du nombre de lignes mises à jour et s'arrête
+    proprement si aucune ligne à backfiller n'est trouvée.
+    """
     print("Connecting to PostgreSQL database...")
 
     # 1. Fetch ref_segments and compute rounded WKT in Python

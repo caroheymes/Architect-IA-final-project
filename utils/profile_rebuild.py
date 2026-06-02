@@ -20,6 +20,21 @@ _segment_spatial_cache = {}
 
 
 def h3shape_merge_cached(h3_id_list):
+    """Variante cachée de `create_merged_polygon_from_hexes` (DAG).
+
+    Identique fonctionnellement à la version utilisée dans le DAG mais
+    conserve les résultats dans le dict module-level `_h3shape_cache` indexé
+    par `tuple(sorted(set(h3_id_list)))`. Permet d'économiser le coût
+    prohibitif de `cells_to_h3shape` sur les mêmes ensembles de cellules
+    entre deux snapshots consécutifs.
+
+    Args:
+        h3_id_list (list[str]): Liste d'identifiants H3 (rés. 13).
+
+    Returns:
+        shapely.geometry.Polygon | None: Polygone fusionné, ou `None` si
+        l'entrée est vide.
+    """
     if not h3_id_list:
         return None
     unique_hexes = sorted(list(set(h3_id_list)))
@@ -29,6 +44,8 @@ def h3shape_merge_cached(h3_id_list):
     try:
         val = shape(h3.cells_to_h3shape(unique_hexes))
     except Exception:
+        # Fallback si l'API v3 n'est pas dispo : on reconstruit le polygone
+        # cellule par cellule puis on fait l'union.
         polygons = []
         for h in unique_hexes:
             boundary = h3.cell_to_boundary(h)
@@ -39,6 +56,17 @@ def h3shape_merge_cached(h3_id_list):
 
 
 def get_speed_category(speed):
+    """Catégorise une vitesse (km/h) — duplicata local de la version du DAG.
+
+    Conservée ici pour que le module de profiling soit autonome (sans
+    dépendance sur `dags/dag_pipeline.py`).
+
+    Args:
+        speed (float | int | None): Vitesse en km/h.
+
+    Returns:
+        str: "Slow (0-20 km/h)", "Medium (20-50 km/h)", "Fast (>50 km/h)" ou "Unknown".
+    """
     if pd.isna(speed):
         return "Unknown"
     elif speed <= 20:
@@ -50,6 +78,24 @@ def get_speed_category(speed):
 
 
 def run_profile():
+    """Profile la transformation Silver sur deux snapshots consécutifs.
+
+    Charge les 2 plus anciens snapshots Bronze. Le premier sert à **chauffer**
+    les caches (`_segment_spatial_cache`, `_h3shape_cache`) ; le second
+    déclenche la transformation complète et imprime le temps écoulé pour
+    chaque étape :
+
+      1. `Dict parsing` — aplatissement JSON → `list[dict]`
+      2. `pd.DataFrame build & LineString` — vectorisation
+      3. `Cache lookup` — hits/miss dans le cache spatial
+      4. `Interpolation / H3 mapping` — segments 7 m + indexation H3
+      5. `Speed sanitization & mapping` — conversion → catégorisation
+      6. `GeoDataFrame CRS transform` — reprojection Lambert-93 → WGS84
+      7. `Serialization (WKT/JSON)` — préparation pour insertion SQL
+
+    Sert de benchmark pour identifier les goulets d'étranglement après
+    ajout du cache spatial.
+    """
     with engine.begin() as conn:
         snap = conn.execute(
             text("SELECT id, fetched_at, raw_data FROM bronze.trafic_vitesse_brute ORDER BY fetched_at ASC LIMIT 2;")

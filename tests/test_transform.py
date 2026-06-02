@@ -28,7 +28,14 @@ from dags.dag_pipeline import (
 
 class TestTransformTrafficData(unittest.TestCase):
     def test_get_speed_category(self):
-        """Test classification of speeds into slow, medium, fast, and unknown."""
+        """Vérifie les bornes de la fonction `get_speed_category`.
+
+        Cas couverts :
+          - `15`, `20` → "Slow (0-20 km/h)"
+          - `35`, `50` → "Medium (20-50 km/h)"
+          - `65`       → "Fast (>50 km/h)"
+          - `None`, `NaN` → "Unknown"
+        """
         self.assertEqual(get_speed_category(15), "Slow (0-20 km/h)")
         self.assertEqual(get_speed_category(20), "Slow (0-20 km/h)")
         self.assertEqual(get_speed_category(35), "Medium (20-50 km/h)")
@@ -38,7 +45,11 @@ class TestTransformTrafficData(unittest.TestCase):
         self.assertEqual(get_speed_category(float("nan")), "Unknown")
 
     def test_transform_line_to_point(self):
-        """Test that a LineString (EPSG:2154) is correctly split into points."""
+        """Vérifie l'interpolation tous les 7 m d'une `LineString` Lambert-93.
+
+        Avec une ligne de 15 m, on attend 4 points (d=0, 7, 14, et le point
+        final 15 par fallback) puis reprojection en WGS84.
+        """
         # Create a 15-meter long line starting at (1840000, 5175000) going east
         line = LineString([(1840000, 5175000), (1840015, 5175000)])
 
@@ -50,12 +61,16 @@ class TestTransformTrafficData(unittest.TestCase):
         self.assertEqual(len(points), 4)
 
     def test_create_merged_polygon_from_hexes_empty(self):
-        """Test H3 boundary merging with empty lists."""
+        """Vérifie que la fusion de H3 retourne `None` pour entrée vide ou `None`."""
         self.assertIsNone(create_merged_polygon_from_hexes([]))
         self.assertIsNone(create_merged_polygon_from_hexes(None))
 
     def test_create_merged_polygon_from_hexes_valid(self):
-        """Test H3 boundary merging with sample H3 hex indices."""
+        """Vérifie la fusion de cellules H3 valides (rés. 13) en polygone Shapely.
+
+        On génère dynamiquement un ID H3 autour de Lyon (45.75, 4.85) pour
+        rester compatible avec les validations strictes de H3 v4.
+        """
         # Dynamically generate a valid Lyon cell ID to bypass strict H3 v4 cell validation
         valid_hex = h3.latlng_to_cell(45.75, 4.85, 13)
         hex_list = [valid_hex, valid_hex]  # Duplicates should be handled
@@ -71,7 +86,21 @@ class TestTransformTrafficData(unittest.TestCase):
     def test_transform_traffic_data_pipeline_and_silver_push(
         self, mock_to_file, mock_to_csv, mock_makedirs, mock_create_engine
     ):
-        """Test the complete data transformation pipeline and database Silver layer push."""
+        """Test d'intégration de la transformation Bronze→Silver.
+
+        Mocke la base, `to_csv`, `to_file` et `to_sql`, puis vérifie :
+          - `create_engine` appelé une fois.
+          - exactement 2 requêtes SQL : fetch Bronze + CREATE SCHEMA Silver.
+          - `makedirs("/opt/airflow/data")` appelé.
+          - `to_csv` (CSV) et `to_file` (GeoJSON) appelés une fois chacun.
+          - `to_sql` appelé avec `name="trafic_vitesse_propre"`, `schema="silver"`,
+            `if_exists="append"`, `index=False`.
+          - les colonnes sérialisées attendues sont présentes
+            (`geometry_wgs84_wkt`, `points_json`, `hexes_json`,
+            `merged_h3_geometry_json`, `transformed_at`).
+          - la fenêtre d'interpolation 7 m donne bien 3 points pour une
+            `LineString` de 13 m (d=0, 7, 13).
+        """
 
         # Setup lists to capture the DataFrame passed as 'self' and kwargs to the mocked to_sql method
         pushed_dfs = []

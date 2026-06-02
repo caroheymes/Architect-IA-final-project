@@ -44,6 +44,35 @@ WEIGHT_NORMAL = float(os.getenv("WEIGHT_NORMAL", "1.0"))  # > 30 km/h
 
 
 def train_model():
+    """Lance l'entraînement complet du modèle STGCN (mode production).
+
+    Configuration via variables d'environnement :
+      - `SEQ_LEN` (défaut 120) : taille de la fenêtre d'entrée (10 h à 5 min/pas).
+      - `BATCH_SIZE` (défaut 2) : taille de batch, calibrée pour tenir dans 4 Go.
+      - `HIDDEN_CHANNELS` (défaut 128), `LEARNING_RATE` (0.001), `WEIGHT_DECAY` (1e-5),
+        `EPOCHS` (100).
+      - `WEIGHT_JAM` (15.0), `WEIGHT_SLOW` (5.0), `WEIGHT_NORMAL` (1.0) :
+        pondérations « en escalier » de la MSE pour pénaliser
+        prioritairement les sous-estimations d'embouteillages.
+      - `HORIZONS` (CSV, défaut `1`) : liste des horizons en pas de 5 min.
+      - `USE_LOCAL_CSV` (`true`/`false`) : si vrai, charge `data/in/*.csv`
+        au lieu d'interroger PostgreSQL.
+
+    Pipeline :
+      1. Connexion PostgreSQL + setup MLflow.
+      2. Chargement topologie + séries (CSV ou DB).
+      3. Construction des loaders PyG multi-horizon.
+      4. Initialisation modèle + optimiseur Adam.
+      5. Boucle d'entraînement avec :
+         - loss = MSE pondérée par tranche de vitesse (entrée dénormalisée),
+         - gradient clipping (max_norm=1.0),
+         - métrique = MAE en km/h sur le test set,
+         - early stopping (patience=10) sur la MAE,
+         - sauvegarde du meilleur modèle dans `models/stgcn_prod_latest.pt`
+           et du scaler dans `models/stgcn_scaler.pkl`.
+      6. **Analyse stratifiée d'erreur** : MAE, biais, écart-types et boxplots
+        par tranche de 10 km/h, loggués comme artifact MLflow + CSV local.
+    """
     # Capping PyTorch threads to avoid CPU thrashing on laptops
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)

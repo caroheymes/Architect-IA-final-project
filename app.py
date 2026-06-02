@@ -72,7 +72,17 @@ st.sidebar.info("""
 
 
 def get_mlflow_runs():
-    import mlflow
+    """Récupère les 15 derniers runs MLflow de l'expérience STGCN (id `7`).
+
+    Se connecte au serveur MLflow via l'URI configurée dans `MLFLOW_TRACKING_URI`
+    (par défaut `http://mlflow:5000`), puis interroge l'historique des runs trié
+    du plus récent au plus ancien.
+
+    Returns:
+        list[mlflow.entities.Run]: Liste des runs trouvés, ou liste vide si le
+        serveur MLflow est indisponible / injoignable.
+    """
+    import mlflow  # noqa: F401  (import local pour ne pas ralentir le boot Streamlit)
     from mlflow.tracking import MlflowClient
 
     mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
@@ -81,16 +91,31 @@ def get_mlflow_runs():
         runs = client.search_runs(experiment_ids=["7"], order_by=["attribute.start_time DESC"], max_results=15)
         return runs
     except Exception:
+        # En cas d'erreur de connexion MLflow, on retourne une liste vide pour
+        # que l'UI Streamlit continue de fonctionner en mode dégradé.
         return []
 
 
 def get_mlflow_artifact_plot_for_run(run_id):
-    import mlflow
+    """Télécharge l'artifact graphique d'analyse d'erreur stratifiée d'un run MLflow.
+
+    Cherche le fichier `plots/stratified_error_analysis.png` dans les artifacts
+    du run et le rapatrie en local pour pouvoir l'afficher dans Streamlit.
+
+    Args:
+        run_id (str): Identifiant MLflow du run ciblé.
+
+    Returns:
+        str | None: Chemin local du PNG téléchargé, ou `None` si l'artifact
+        n'existe pas ou si le téléchargement a échoué.
+    """
+    import mlflow  # noqa: F401
     from mlflow.tracking import MlflowClient
 
     mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
     client = MlflowClient(tracking_uri=mlflow_uri)
 
+    # Chemin relatif de l'artifact tel qu'il a été loggé par l'entraînement.
     plot_subpath = "plots/stratified_error_analysis.png"
 
     try:
@@ -98,30 +123,52 @@ def get_mlflow_artifact_plot_for_run(run_id):
         if os.path.exists(local_path):
             return local_path
     except Exception:
+        # On capture toute exception (run inexistant, artifact manquant,
+        # problème réseau…) pour ne pas crasher l'UI.
         pass
     return None
 
 
 def get_mlflow_metrics_history_for_run(run_id):
-    import mlflow
+    """Construit l'historique par époque des métriques d'entraînement pour un run MLflow.
+
+    Récupère les séries temporelles de deux métriques :
+      - `train_loss_std` : perte MSE standardisée d'entraînement
+      - `test_mae_kmh`   : MAE de validation exprimée en km/h
+
+    puis les fusionne dans un DataFrame unique indexé par époque.
+
+    Args:
+        run_id (str): Identifiant MLflow du run ciblé.
+
+    Returns:
+        pandas.DataFrame | None: DataFrame avec colonnes `Epoch`,
+        `Train Loss (std)`, `Test MAE (km/h)`, trié par époque. Retourne
+        `None` si la récupération a échoué.
+    """
+    import mlflow  # noqa: F401
     from mlflow.tracking import MlflowClient
 
     mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
     client = MlflowClient(tracking_uri=mlflow_uri)
 
     try:
+        # On lit l'historique complet de chaque métrique (un point par époque loggée).
         history_loss = client.get_metric_history(run_id, "train_loss_std")
         history_mae = client.get_metric_history(run_id, "test_mae_kmh")
 
+        # Extraction des époques (step) et valeurs dans des listes Python.
         epochs_loss = [m.step for m in history_loss]
         values_loss = [m.value for m in history_loss]
 
         epochs_mae = [m.step for m in history_mae]
         values_mae = [m.value for m in history_mae]
 
+        # Un DataFrame par métrique, trié par époque (sécurité si MLflow renvoie désordonné).
         df_loss = pd.DataFrame({"Epoch": epochs_loss, "Train Loss (std)": values_loss}).sort_values("Epoch")
         df_mae = pd.DataFrame({"Epoch": epochs_mae, "Test MAE (km/h)": values_mae}).sort_values("Epoch")
 
+        # Jointure externe : si une métrique manque à une époque donnée, on garde NaN.
         df_metrics = pd.merge(df_loss, df_mae, on="Epoch", how="outer")
         return df_metrics
     except Exception:
@@ -129,6 +176,20 @@ def get_mlflow_metrics_history_for_run(run_id):
 
 
 def plot_training_curves(df_metrics):
+    """Génère la figure Plotly des courbes d'apprentissage (perte + MAE).
+
+    Crée une figure à deux sous-graphes côte à côte :
+      - à gauche : la perte MSE standardisée d'entraînement par époque
+      - à droite : la MAE de validation en km/h par époque
+
+    Args:
+        df_metrics (pandas.DataFrame): Doit contenir les colonnes
+        `Epoch`, `Train Loss (std)` et `Test MAE (km/h)`.
+
+    Returns:
+        plotly.graph_objects.Figure: Figure Plotly prête à être passée à
+        `st.plotly_chart`.
+    """
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 

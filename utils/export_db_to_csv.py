@@ -19,10 +19,23 @@ SEQ_LEN = int(os.getenv("SEQ_LEN_EXPORT", "150"))
 
 
 def run_export():
-    """
-    Exécute l'exportation des données de la couche Gold de PostgreSQL vers des fichiers CSV locaux.
-    Limite les données de trafic aux 120 derniers pas temporels (seq_len = 120) pour tester l'inférence
-    ou un entraînement unitaire ultra-court sans charger toute la base.
+    """Exporte la couche Gold de PostgreSQL vers trois fichiers CSV plats.
+
+    Génère dans `$DATA_FOLDER` (par défaut `data/in`) :
+      - `node_mapping.csv` : table `gold.dim_spatial_grid_mapping` jointe à
+        `silver.ref_segments` pour récupérer le WKT WGS84 de chaque nœud.
+      - `edges.csv` : arêtes de `gold.dim_gnn_adjacency` (`node_u`, `node_v`).
+      - `traffic_series.csv` : faits de `gold.fact_traffic_series` filtrés
+        sur les `$SEQ_LEN_EXPORT` derniers pas de temps (par défaut 150, pour
+        couvrir une fenêtre glissante de 120 + un tampon de padding).
+
+    Le script `sys.exit(1)` dès qu'une étape échoue (connexion, mapping,
+    topologie ou séries temporelles) et affiche une synthèse finale.
+
+    Configuration (variables d'environnement) :
+        - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`
+        - `DATA_FOLDER`     : dossier d'export (défaut `data/in`)
+        - `SEQ_LEN_EXPORT`  : nb de pas de temps à exporter (défaut `150`)
     """
     print("====================================================================")
     print("🚀 Démarrage du script d'export de données PostgreSQL vers CSV...")

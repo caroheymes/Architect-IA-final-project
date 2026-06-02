@@ -43,7 +43,22 @@ OUTPUT_DIR = "/opt/airflow/data"
 # HELPER SPATIAL FUNCTIONS
 # ============================================================================
 def transform_line_to_point(ligne_2154):
-    """Transforms a LineString into a list of points every 7 meters."""
+    """Échantillonne une `LineString` Shapely en points équidistants de 7 mètres.
+
+    Le segment routier fourni est dans le système de projection Lambert-93
+    (EPSG:2154, en mètres). On :
+      1. calcule des positions intermédiaires tous les 7 m via `interpolate()` ;
+      2. ajoute le point final si la longueur n'est pas un multiple exact de 7 m ;
+      3. reprojette tous les points en WGS84 (EPSG:4326, latitude/longitude),
+         format exploitable par les API cartographiques et H3.
+
+    Args:
+        ligne_2154 (shapely.LineString): Le segment routier en Lambert-93.
+
+    Returns:
+        list[shapely.Point]: La liste des points en WGS84, ou liste vide si
+        la géométrie est vide / None.
+    """
     if not ligne_2154 or ligne_2154.is_empty:
         return []
 
@@ -64,10 +79,23 @@ def transform_line_to_point(ligne_2154):
 
 
 def create_merged_polygon_from_hexes(h3_id_list):
-    """Unifies a list of H3 cell IDs into a single Shapely Polygon."""
+    """Fusionne un ensemble de cellules H3 en un polygone Shapely unique.
+
+    Plusieurs versions de la librairie `h3` exposent des API différentes
+    (`cells_to_geo` en v4, `cells_to_geojson` en v3, sinon on reconstruit
+    manuellement avec `cell_to_boundary` puis `unary_union`).
+
+    Args:
+        h3_id_list (list[str]): Liste d'identifiants de cellules H3 (rés. 13).
+
+    Returns:
+        shapely.geometry.Polygon | None: Polygone fusionné, ou `None` si
+        l'entrée est vide ou si la fusion échoue.
+    """
     if not h3_id_list:
         return None
 
+    # On dédoublonne pour éviter de traiter plusieurs fois la même cellule.
     unique_hexes = list(set(h3_id_list))
 
     try:
@@ -93,7 +121,15 @@ def create_merged_polygon_from_hexes(h3_id_list):
 
 
 def get_speed_category(speed):
-    """Maps speed metrics to human-readable categories."""
+    """Catégorise une vitesse (km/h) en libellé lisible.
+
+    Args:
+        speed (float | int | None): Vitesse en km/h. `NaN`/`None` → "Unknown".
+
+    Returns:
+        str: Une des quatre catégories : "Slow (0-20 km/h)",
+        "Medium (20-50 km/h)", "Fast (>50 km/h)", "Unknown".
+    """
     if pd.isna(speed):
         return "Unknown"
     elif speed <= 20:
@@ -108,7 +144,15 @@ def get_speed_category(speed):
 # CORE PIPELINE PIPES (EXECUTED AS PYTHON TASKS)
 # ============================================================================
 def ingest_traffic_data():
-    """Fetches real-time traffic data from Grand Lyon API and saves it to postgres bronze."""
+    """Tâche Airflow #1 — Ingestion temps réel depuis l'API Grand Lyon.
+
+    Appelle le flux WFS de la Métropole de Lyon, horodate la capture en heure
+    de Paris, puis stocke la réponse JSON brute dans la couche Bronze
+    (`bronze.trafic_vitesse_brute`) en créant la table et son index si besoin.
+
+    Raises:
+        Exception: Si l'appel HTTP échoue ou si la base de données est injoignable.
+    """
     logger.info("Starting real-time traffic data ingestion...")
     try:
         response = requests.get(API_URL, auth=(API_LOGIN, API_PASSWORD), timeout=30)
@@ -159,7 +203,23 @@ def ingest_traffic_data():
 
 
 def transform_traffic_data():
-    """Transforms raw bronze JSON payload, outputs file backups, and pushes to postgres silver."""
+    """Tâche Airflow #2 — Transformation Bronze → Silver.
+
+    1. Récupère le dernier snapshot brut depuis `bronze.trafic_vitesse_brute`.
+    2. Aplatit le JSON en DataFrame, ne garde que les capteurs « à jour »
+       (`est_a_jour != False`).
+    3. Construit la `LineString` (EPSG:2154) puis la reprojette en WGS84.
+    4. Échantillonne chaque segment tous les 7 m via `transform_line_to_point`.
+    5. Indexe chaque point en cellule H3 de résolution 13 et agrège ces
+       cellules en un polygone unique (`create_merged_polygon_from_hexes`).
+    6. Impute les vitesses manquantes par la moyenne historique du capteur,
+       puis catégorise la vitesse (`get_speed_category`).
+    7. Exporte deux sauvegardes locales (CSV + GeoJSON) et insère le résultat
+       en mode `append` dans `silver.trafic_vitesse_propre`.
+
+    Raises:
+        Exception: Si la couche Bronze est vide ou si l'écriture SQL échoue.
+    """
     logger.info("Starting spatial data transformation...")
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
@@ -324,8 +384,27 @@ def transform_traffic_data():
 
 
 def materialize_gold_layer():
-    """Dynamically calculates active sensors, updates dimensions,
-    and pushes imputed real-time traffic to gold.fact_traffic_series."""
+    """Tâche Airflow #3 — Construction de la couche Gold (faits + dimensions GNN).
+
+    Étapes principales :
+      1. **Sélection des capteurs actifs** : on ne garde que les capteurs dont
+         le taux de NaN dans l'historique Silver est < 90 %.
+      2. **Mapping spatial** (`gold.dim_spatial_grid_mapping`) : pour chaque
+         capteur actif, on récupère ses cellules H3 et on les projette en
+         coordonnées locales `(i, j)` relatives à l'origine du graphe via
+         `h3.cell_to_local_ij` (ou son équivalent v3 `experimental_h3_to_local_ij`).
+      3. **Matrice d'adjacence** (`gold.dim_gnn_adjacency`) : on construit
+         l'edgelist du graphe en reliant tous capteurs partageant une cellule
+         H3, ou dont les cellules sont voisines dans un rayon K=2 (`grid_disk`).
+      4. **Imputation et faits** (`gold.fact_traffic_series`) : on récupère
+         le dernier snapshot Silver, on l'enrichit avec un fallback à 3 niveaux
+         (vitesse mesurée → moyenne historique du capteur → `LYON_DEFAULT_SPEED`,
+         défaut 30 km/h), puis on écrit de manière atomique
+         (TRUNCATE des dimensions + DELETE/INSERT idempotent des faits).
+
+    Raises:
+        Exception: Si la couche Silver est vide ou si la projection H3 échoue.
+    """
     logger.info("Starting Gold layer materialization...")
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
@@ -610,7 +689,17 @@ def materialize_gold_layer():
 # EXTRA GNN PIPELINE PIPES
 # ============================================================================
 def export_to_csv_task():
-    """Exécute l'export de la base de données vers des CSV plats de manière séquentielle."""
+    """Tâche Airflow #4 — Export des données Gold vers des CSV plats.
+
+    Configure les variables d'environnement attendues par `utils.export_db_to_csv`
+    (dossier de sortie, host PostgreSQL, longueur de séquence), puis délègue
+    tout le travail à `run_export()`. Les CSV produits serviront d'entrée
+    à l'inférence STGCN (mode fichier).
+
+    Side effects:
+        - Écrit des CSV dans `$DATA_FOLDER` (par défaut `/opt/airflow/project/data/in`).
+        - Définit plusieurs variables d'environnement pour l'export.
+    """
     from utils.export_db_to_csv import run_export
 
     logger.info("Début de l'exportation de la couche Gold vers des CSV plats...")
@@ -621,7 +710,23 @@ def export_to_csv_task():
 
 
 def trigger_stgcn_prediction_on_ray():
-    """Soumet le script d'inférence STGCN au cluster Ray et attend sa complétion."""
+    """Tâche Airflow #5 — Soumission et surveillance d'un job d'inférence STGCN sur Ray.
+
+    Étapes :
+      1. Construit un payload `entrypoint` + `runtime_env` (variables d'env
+         passées au worker Ray : chemins modèle/scaler, longueurs de séquence,
+         horizons de prédiction, credentials PostgreSQL).
+      2. POST sur l'API REST du dashboard Ray (`/api/jobs/`) pour soumettre
+         le job `predict_stgcn.py` au cluster.
+      3. Boucle de polling toutes les 10 s sur `/api/jobs/{id}` jusqu'à
+         terminaison (`SUCCEEDED`, `FAILED` ou `STOPPED`).
+      4. En cas d'échec, tente de récupérer les logs via `/api/jobs/{id}/logs`
+         puis lève une exception pour faire échouer la tâche Airflow.
+
+    Raises:
+        requests.HTTPError: Si l'API Ray renvoie un code non-2xx.
+        Exception: Si le job se termine en `FAILED` ou `STOPPED`.
+    """
     import time
 
     import requests

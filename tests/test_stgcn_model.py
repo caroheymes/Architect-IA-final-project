@@ -40,7 +40,14 @@ class TestSpatioTemporalGCN(unittest.TestCase):
         )
 
     def test_model_initialization(self):
-        """Test model layer initialization and correct parameter types."""
+        """Vérifie l'initialisation des sous-modules du modèle.
+
+        Assertions :
+          - `model` est un `nn.Module`.
+          - `temporal_gru` est un `nn.GRU`.
+          - `fc` est un `nn.Linear`.
+          - le nombre total de paramètres est strictement positif.
+        """
         self.assertIsInstance(self.model, nn.Module)
         self.assertIsInstance(self.model.temporal_gru, nn.GRU)
         self.assertIsInstance(self.model.fc, nn.Linear)
@@ -50,7 +57,12 @@ class TestSpatioTemporalGCN(unittest.TestCase):
         self.assertTrue(param_count > 0)
 
     def test_forward_shape_consistency(self):
-        """Test that the model handles correct input shapes and returns expected output shapes without breaking."""
+        """Vérifie la cohérence des shapes entrée/sortie du forward.
+
+        Crée un tenseur `[B*N, S, C]` aléatoire et un graphe en chaîne
+        bidirectionnel, puis vérifie que la sortie est `[B*N, out_channels]`
+        et ne contient pas de NaN.
+        """
         # Batch size = B, Num nodes = N, Seq len = S, In channels = C
         # Input tensor 'x' shape expected by PyG / GRU: [B * N, S, C]
         total_graphs_nodes = self.batch_size * self.num_nodes
@@ -75,7 +87,14 @@ class TestSpatioTemporalGCN(unittest.TestCase):
         self.assertFalse(torch.isnan(output).any(), "Model produced NaN values in forward pass.")
 
     def test_gradient_flow_and_clipping(self):
-        """Test gradient backpropagation and verify gradient clipping functions correctly."""
+        """Vérifie la backprop et le gradient clipping sur un graphe complet.
+
+        Construit un graphe complet (chaque paire de nœuds reliée), effectue
+        un forward + MSE loss + backward, puis :
+          - tous les `param.grad` existent et sont non-NaN ;
+          - `clip_grad_norm_(max_norm=1.0)` retourne un scalaire fini ;
+          - `optimizer.step()` s'exécute sans erreur.
+        """
         total_graphs_nodes = self.batch_size * self.num_nodes
         x = torch.randn(total_graphs_nodes, self.seq_len, self.in_channels)
 
@@ -118,7 +137,12 @@ class TestSpatioTemporalGCN(unittest.TestCase):
         optimizer.step()
 
     def test_staircase_loss_weight_application(self):
-        """Test the mathematical implementation of our staircase loss penalties."""
+        """Vérifie l'implémentation de la loss pondérée « en escalier ».
+
+        Pour des cibles `y_kmh = [5, 25, 45]` (JAM, SLOW, NORMAL), on doit
+        obtenir les poids `[15, 5, 1]` et la loss pondérée `(diff^2 * weights).mean()`
+        doit être identique à sa version manuelle.
+        """
         # Setup dummy de-normalized targets representing JAM (<10), SLOW (<30), and NORMAL (>30)
         y_kmh = torch.tensor([[5.0], [25.0], [45.0]])  # JAM, SLOW, NORMAL
         predictions = torch.tensor([[8.0], [22.0], [45.0]])  # some predictions
@@ -147,7 +171,13 @@ class TestSpatioTemporalGCN(unittest.TestCase):
 
 class TestSTGCNDatasetAndTraining(unittest.TestCase):
     def test_load_graph_topology_mock(self):
-        """Test database topology loading with a mocked DB connection."""
+        """Mocke la DB et vérifie `load_graph_topology`.
+
+        Avec 5 nœuds et 4 arêtes (cycle 0→1→2→3→0), on attend :
+          - `num_nodes == 5`
+          - `edge_index.shape == (2, 13)` (8 arêtes bidirectionnelles + 5 self-loops)
+          - retour = `torch.Tensor`.
+        """
         mock_engine = MagicMock()
         mock_conn = MagicMock()
         mock_engine.connect.return_value.__enter__.return_value = mock_conn
@@ -168,7 +198,13 @@ class TestSTGCNDatasetAndTraining(unittest.TestCase):
             self.assertIsInstance(edge_index, torch.Tensor)
 
     def test_load_traffic_series_mock(self):
-        """Test database facts series loading, pivoting, default speed imputation, and cyclical variables calculation."""
+        """Mocke la DB et vérifie `load_traffic_series` (pivot, imputation NaN, cycliques).
+
+        Avec 2 timestamps × 2 nœuds et un NaN :
+          - la matrice est de shape `(2, 2)` ;
+          - la valeur manquante est remplacée par `LYON_DEFAULT_SPEED = 30.0` ;
+          - les 4 features cycliques sont de longueur 2.
+        """
         mock_engine = MagicMock()
 
         # 2 timestamps, 2 nodes. One missing value to test 30.0 imputation.
@@ -204,7 +240,13 @@ class TestSTGCNDatasetAndTraining(unittest.TestCase):
                 self.assertEqual(len(d_cos), 2)
 
     def test_build_sliding_dataset(self):
-        """Test PyTorch Geometric dataset generation sliding windows and batching loaders."""
+        """Vérifie `build_sliding_dataset` (scaler fit, loaders, shapes des batches).
+
+        Avec 50 pas, 4 nœuds, `seq_len=6` :
+          - le `StandardScaler` est fitté (`mean_`, `scale_` présents) ;
+          - le premier batch du `train_loader` a un tenseur `x` de shape
+            `[B, 6, 5]` et un tenseur `y` de shape `[B, 1]`.
+        """
         num_nodes = 4
         num_timesteps = 50
         seq_len = 6
@@ -247,7 +289,14 @@ class TestSTGCNDatasetAndTraining(unittest.TestCase):
             break
 
     def test_metrics_calculation(self):
-        """Test the correctness of Train Loss (std) and Test MAE (km/h) computation logic."""
+        """Vérifie la formule de calcul de la `epoch_loss` et de la `test_mae_kmh`.
+
+        Cas vérifiés :
+          - Loss moyenne = `(b1*g + b2*g) / total_graphs`
+            (ici 0.4 avec `b1=0.5, b2=0.3, g=4, total=8`).
+          - MAE = `|pred-target|.sum() / (n_graphs * n_nodes)`
+            (ici 17/6 sur l'exemple 6 paires).
+        """
         import torch.nn.functional as F
 
         # 1. Test Train Loss (std) calculation

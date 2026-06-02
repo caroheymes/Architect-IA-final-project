@@ -22,7 +22,14 @@ class TestIngestTrafficData(unittest.TestCase):
     @patch("dags.dag_pipeline.requests.get")
     @patch("dags.dag_pipeline.create_engine")
     def test_ingest_traffic_data_success(self, mock_create_engine, mock_get):
-        """Test successful ingestion when API and Database are fully working."""
+        """Cas nominal : l'API Grand Lyon renvoie un GeoJSON valide, la DB accepte l'écriture.
+
+        Vérifie que :
+          - `requests.get` est appelé une fois.
+          - `create_engine` est appelé une fois.
+          - `engine.begin()` est utilisé (transaction).
+          - Au moins 3 `execute()` sont lancés (CREATE SCHEMA, CREATE TABLE, INSERT).
+        """
 
         # Mock API Response
         mock_response = MagicMock()
@@ -60,7 +67,11 @@ class TestIngestTrafficData(unittest.TestCase):
 
     @patch("dags.dag_pipeline.requests.get")
     def test_ingest_traffic_data_api_failure(self, mock_get):
-        """Test ingestion behavior when Grand Lyon API returns an error."""
+        """Cas dégradé : l'API Grand Lyon lève une `RequestException`.
+
+        On s'attend à ce que `ingest_traffic_data` propage une `Exception`
+        contenant le préfixe `"Ingestion failed"`.
+        """
 
         # Mock API Failure using requests.exceptions.RequestException
         mock_get.side_effect = requests.exceptions.RequestException("API connection timed out")

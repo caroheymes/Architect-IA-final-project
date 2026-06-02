@@ -20,6 +20,14 @@ _super_cache = {}  # maps GID to (geometry_wgs84_wkt, points_json, hexes_json, m
 
 
 def h3shape_merge_cached(h3_id_list):
+    """Variante cachée de la fusion H3 — voir `profile_rebuild.py`.
+
+    Args:
+        h3_id_list (list[str]): Identifiants H3 (rés. 13).
+
+    Returns:
+        shapely.geometry.Polygon | None: Polygone fusionné, ou `None`.
+    """
     if not h3_id_list:
         return None
     unique_hexes = sorted(list(set(h3_id_list)))
@@ -39,6 +47,22 @@ def h3shape_merge_cached(h3_id_list):
 
 
 def run_test():
+    """Mesure les performances du **Super Cache** sur les 5 plus vieux snapshots Bronze.
+
+    Le Super Cache `_super_cache` stocke par segment la valeur **déjà
+    sérialisée** (`wkt`, `points_json`, `hexes_json`, `merged_h3_geometry_json`),
+    ce qui permet sur cache hit d'éviter la reprojection et la sérialisation.
+
+    Pour chaque snapshot, on :
+      1. charge les features ;
+      2. tente de récupérer la ligne pré-sérialisée dans `_super_cache` ;
+      3. sur miss, recalcule la géométrie WGS84 + interpolation + H3 +
+         sérialisation, puis peuple le cache ;
+      4. log le temps total et les compteurs `hits/misses`.
+
+    Le but est de mesurer le speedup réel du Super Cache vs la version
+    sans cache (cf. `profile_rebuild.py`).
+    """
     with engine.begin() as conn:
         snapshots = conn.execute(
             text("SELECT id, fetched_at, raw_data FROM bronze.trafic_vitesse_brute ORDER BY fetched_at ASC LIMIT 5;")

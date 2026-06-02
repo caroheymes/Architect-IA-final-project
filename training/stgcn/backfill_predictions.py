@@ -50,7 +50,11 @@ HORIZONS = [int(h) for h in HORIZONS_STR.split(",") if h.strip()]
 
 
 def init_database_table(engine):
-    """Initialise la table gold.fact_predictions_traffic si nécessaire."""
+    """Crée `gold.fact_predictions_traffic` et ses index si nécessaire.
+
+    Args:
+        engine (sqlalchemy.Engine): Engine SQLAlchemy.
+    """
     with engine.begin() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS gold;"))
         create_table_query = """
@@ -79,6 +83,27 @@ def init_database_table(engine):
 
 
 def run_backfill():
+    """Rattrapage historique des prédictions STGCN sur tous les pas de temps manquants.
+
+    Identifie les instants de `gold.fact_traffic_series` qui n'ont pas encore
+    de prédiction dans `gold.fact_predictions_traffic`, reconstruit pour
+    chacun la fenêtre glissante de `SEQ_LEN` pas précédents, exécute
+    l'inférence et insère tous les enregistrements en base.
+
+    Étapes principales :
+      1. Crée la table cible (`init_database_table`).
+      2. Charge la topologie (mapping + adjacency + self-loops).
+      3. Charge **tout** l'historique de `gold.fact_traffic_series`,
+         pivote en matrice `[T × N]`, remplace les NaN par `LYON_DEFAULT_SPEED`.
+      4. Liste les `prediction_timestamp` déjà calculés et identifie ceux
+         qui sont éligibles (≥ SEQ_LEN pas d'historique disponibles).
+      5. Charge le scaler et le modèle (le modèle reste en `eval()` sur
+         GPU/CPU).
+      6. Pour chaque instant éligible, extrait la fenêtre, normalise,
+         construit le tenseur PyG, infère, dénormalise et clip.
+      7. Insère **en bloc** (`chunksize=10000`) tous les enregistrements
+         `nœud × horizon` dans `gold.fact_predictions_traffic`.
+    """
     logger.info("====================================================================")
     logger.info("🚀 Démarrage du pipeline de Backfill d'Inférence STGCN...")
     logger.info("====================================================================")

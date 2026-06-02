@@ -34,6 +34,26 @@ DATA_DIR = "/opt/airflow/data"
 
 
 def migrate_historical():
+    """Ré-ingeste les GeoJSON historiques (`*_transformed.json`) vers la table Silver.
+
+    Ce script est utile quand on dispose d'un historique de fichiers GeoJSON
+    déjà transformés (snapshot du dossier `$DATA_DIR`, typiquement
+    `/opt/airflow/data`) qu'on souhaite rétro-injecter dans la base pour
+    peupler `silver.trafic_vitesse_propre`.
+
+    Pipeline pour chaque fichier trouvé :
+      1. Lecture via GeoPandas (`read_file`).
+      2. Sérialisation des objets Shapely en WKT et des listes/dicts en JSON
+         via la fonction interne `to_json_str`.
+      3. Extraction du timestamp de capture depuis le nom de fichier
+         (format attendu : `YYYY_MM_DD_HH_MM_transformed.json`), avec
+         fallback à `datetime.now()` si le parse échoue.
+      4. Sélection d'un sous-ensemble de colonnes aligné sur le schéma Silver
+         puis `to_sql(..., if_exists="append", chunksize=500)`.
+
+    Les erreurs fichier par fichier sont attrapées pour que l'exécution
+    continue sur les snapshots restants.
+    """
     logger.info("Connecting to PostgreSQL database...")
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
@@ -82,6 +102,16 @@ def migrate_historical():
 
             # Parse or convert list/dict fields to valid JSON strings
             def to_json_str(val):
+                """Convertit n'importe quelle valeur en chaîne JSON valide.
+
+                Règles :
+                  - `None` → `None`
+                  - `list` / `dict` → sérialisation `json.dumps`.
+                  - `str` : si la chaîne est déjà du JSON valide, on la
+                    re-sérialise (pour normaliser les guillemets / escapes),
+                    sinon on la conserve telle quelle.
+                  - autres types → `str(val)`.
+                """
                 if val is None:
                     return None
                 if isinstance(val, (list, dict)):

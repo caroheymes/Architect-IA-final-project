@@ -28,7 +28,17 @@ class TestMigrateHistorical(unittest.TestCase):
     @patch("utils.migrate_historical_to_silver.glob.glob")
     @patch("utils.migrate_historical_to_silver.gpd.read_file")
     def test_migrate_historical_success(self, mock_read_file, mock_glob, mock_create_engine):
-        """Test the historical migration script under normal successful execution."""
+        """Cas nominal : 1 GeoJSON transformé, DB mockée, ingestion Silver.
+
+        Vérifie :
+          - `glob.glob` et `read_file` appelés une fois.
+          - exactement 1 `mock_conn.execute` (CREATE SCHEMA).
+          - `to_sql` appelé une fois avec les bons kwargs.
+          - présence des colonnes sérialisées (`geometry_wgs84_wkt`,
+            `points_json`, `hexes_json`, `merged_h3_geometry_json`,
+            `transformed_at`).
+          - `transformed_at` parsé depuis le nom de fichier en heure de Paris.
+        """
 
         # 1. Mock file finder to return one test JSON file
         mock_glob.return_value = ["/opt/airflow/data/2026_05_29_21_00_transformed.json"]
@@ -117,7 +127,10 @@ class TestMigrateHistorical(unittest.TestCase):
     @patch("utils.migrate_historical_to_silver.create_engine")
     @patch("utils.migrate_historical_to_silver.glob.glob")
     def test_migrate_historical_empty_folder(self, mock_glob, mock_create_engine):
-        """Test historical migration behavior when no transformed files are present."""
+        """Cas dégradé : aucun fichier `*_transformed.json` dans le dossier.
+
+        Le script doit s'arrêter proprement (warning loggué, pas d'ingestion).
+        """
         mock_glob.return_value = []
 
         # Run historical migration

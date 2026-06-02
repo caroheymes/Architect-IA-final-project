@@ -36,7 +36,14 @@ from sqlalchemy import create_engine, text
 
 
 def psql_insert_execute_values(table, conn, keys, data_iter):
-    """Super-fast bulk insert helper using psycopg2 execute_values."""
+    """Helper d'insertion batch via `psycopg2.extras.execute_values` (identique à `utils/backfill_rounded_wkt.py`).
+
+    Args:
+        table (sqlalchemy.Table): Table cible.
+        conn (sqlalchemy.Connection): Connexion SQLAlchemy.
+        keys (list[str]): Colonnes à insérer.
+        data_iter (iterable): Tuples de valeurs alignés sur `keys`.
+    """
     dbapi_conn = conn.connection
     with dbapi_conn.cursor() as cur:
         columns = ", ".join([f'"{k}"' for k in keys])
@@ -72,7 +79,18 @@ _super_segment_spatial_cache = {}
 
 
 def h3shape_merge_cached(h3_id_list):
-    """Unifies a list of H3 cell IDs into a single Shapely Polygon, with global caching."""
+    """Fusionne une liste de cellules H3 en polygone, avec cache module-level.
+
+    Identique à `h3shape_merge_cached` dans `profile_rebuild.py` mais cette
+    version est utilisée dans le pipeline de reconstruction complète.
+    Le cache `_h3shape_cache` est partagé au niveau du module Python.
+
+    Args:
+        h3_id_list (list[str]): Identifiants H3 (rés. 13).
+
+    Returns:
+        shapely.geometry.Polygon | None: Polygone fusionné ou `None`.
+    """
     if not h3_id_list:
         return None
     unique_hexes = sorted(list(set(h3_id_list)))
@@ -94,7 +112,15 @@ def h3shape_merge_cached(h3_id_list):
 
 
 def get_speed_category(speed):
-    """Maps speed metrics to human-readable categories."""
+    """Catégorise une vitesse (km/h) — voir version équivalente dans le DAG.
+
+    Args:
+        speed (float | int | None): Vitesse en km/h.
+
+    Returns:
+        str: Catégorie parmi "Slow (0-20 km/h)", "Medium (20-50 km/h)",
+        "Fast (>50 km/h)", "Unknown".
+    """
     if pd.isna(speed):
         return "Unknown"
     elif speed <= 20:
@@ -106,6 +132,31 @@ def get_speed_category(speed):
 
 
 def rebuild_silver():
+    """Reconstruit intégralement `silver.trafic_vitesse_propre` depuis tout l'historique Bronze.
+
+    Optimisation principale — **Super Segment-Level Cache**
+    (`_super_segment_spatial_cache`) :
+      - Clé = `properties_gid` (stable) ou `tuple(coords)` en fallback.
+      - Valeur = un tuple des **représentations déjà sérialisées**
+        (`geometry_wgs84_wkt`, `points_json`, `hexes_json`,
+        `merged_h3_geometry_json`).
+      - Effet : sur un segment déjà vu, on évite la reprojection Lambert-93→WGS84
+        ET la sérialisation JSON, ce qui divise le temps de traitement
+        par ~350 (de ~10.9 s à ~0.03 s par snapshot).
+
+    Étapes :
+      1. Charge **tous** les snapshots Bronze dans l'ordre chronologique.
+      2. Pour chaque snapshot, filtre `est_a_jour != False`, construit
+         le DataFrame, puis split en cache-hits (lookup direct) et
+         cache-misses (recalcul vectorisé).
+      3. Sur les misses : interpolation 7 m, indexation H3, reprojection,
+         sérialisation, puis **peuple le cache**.
+      4. Concatène tous les DataFrames, `DROP` puis réécrit la table
+         Silver en un seul `INSERT` batch via `execute_values`.
+
+    Les erreurs snapshot par snapshot sont attrapées pour continuer
+    sur les snapshots restants.
+    """
     logger.info("Connecting to PostgreSQL database...")
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 

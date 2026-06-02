@@ -12,6 +12,25 @@ engine = create_engine(DATABASE_URL)
 
 
 def generate_mapping_exhaustive():
+    """Construit la table de référence `silver.ref_segments` à partir de tout l'historique Bronze.
+
+    Stratégie en 4 temps :
+      1. Charger **tous** les snapshots bruts de `bronze.trafic_vitesse_brute`.
+      2. Aplatir chaque feature, dédupliquer par `twgid` (on garde le premier
+         couple `gid`/coordonnées vu) pour obtenir un dictionnaire exhaustif
+         des segments routiers jamais observés.
+      3. Reprojeter les coordonnées Lambert-93 en WGS84 et exporter la table
+         `silver.ref_segments` (clef naturelle = WKT WGS84).
+      4. Si la table Silver existe, ajouter les colonnes `properties_gid` et
+         `properties_twgid` (idempotent) puis peupler via un `UPDATE ... FROM`
+         joiné sur l'égalité stricte de WKT. C'est le même mécanisme que
+         `backfill_rounded_wkt.py` mais sans tolérance d'arrondi.
+
+    Note:
+        Si la table `silver.trafic_vitesse_propre` n'existe pas encore, le
+        script se contente de créer `ref_segments` et laisse le `UPDATE`
+        pour un prochain run.
+    """
     print("Connecting to PostgreSQL database...")
 
     # 1. Fetch ALL snapshots from bronze to build an exhaustive dictionary of all historical segments
