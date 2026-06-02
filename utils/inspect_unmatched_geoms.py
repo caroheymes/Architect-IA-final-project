@@ -1,4 +1,5 @@
 import os
+
 from sqlalchemy import create_engine, text
 
 DATABASE_URL = "postgresql+psycopg2://lyonflow:lyonflow_password@postgres:5432/lyonflow"

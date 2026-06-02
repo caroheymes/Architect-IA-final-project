@@ -1,34 +1,34 @@
-# -*- coding: utf-8 -*-
 """
 backfill_predictions.py
 
 Ce script réalise un backfill (rattrapage historique) des prédictions STGCN.
-Il identifie tous les pas temporels présents dans la table `gold.fact_traffic_series` qui ne 
-possèdent pas encore de prédictions correspondantes dans `gold.fact_predictions_traffic`, 
-reconstruit les séquences historiques de 120 pas temporels pour chacun de ces instants, 
+Il identifie tous les pas temporels présents dans la table `gold.fact_traffic_series` qui ne
+possèdent pas encore de prédictions correspondantes dans `gold.fact_predictions_traffic`,
+reconstruit les séquences historiques de 120 pas temporels pour chacun de ces instants,
 exécute l'inférence via le modèle STGCN sur GPU/CPU, et insère les prédictions dans la base de données.
 
 Formulation impersonnelle pour la conformité de la documentation de projet.
 """
 
-import os
-import sys
 import datetime
-import pickle
 import logging
+import os
+import pickle
+import sys
+
 import numpy as np
 import pandas as pd
 import torch
-from sqlalchemy import create_engine, text
 from sklearn.preprocessing import StandardScaler
+from sqlalchemy import create_engine, text
 
 # Importation des modules locaux du GNN
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from model import SpatioTemporalGCN
 from dataset import load_graph_topology_from_csv
+from model import SpatioTemporalGCN
 
 # Configuration du Logger
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("LyonFlow-STGCN-Backfill")
 
 # Configuration de la base de données
@@ -47,6 +47,7 @@ SEQ_LEN = int(os.getenv("SEQ_LEN", "120"))
 HIDDEN_CHANNELS = int(os.getenv("HIDDEN_CHANNELS", "128"))
 HORIZONS_STR = os.getenv("HORIZONS", "6,12,36")
 HORIZONS = [int(h) for h in HORIZONS_STR.split(",") if h.strip()]
+
 
 def init_database_table(engine):
     """Initialise la table gold.fact_predictions_traffic si nécessaire."""
@@ -67,8 +68,15 @@ def init_database_table(engine):
         );
         """
         conn.execute(text(create_table_query))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pred_timestamp_horizon ON gold.fact_predictions_traffic(prediction_timestamp, horizon_minutes);"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pred_twgid ON gold.fact_predictions_traffic(properties_twgid);"))
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_pred_timestamp_horizon ON gold.fact_predictions_traffic(prediction_timestamp, horizon_minutes);"
+            )
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS idx_pred_twgid ON gold.fact_predictions_traffic(properties_twgid);")
+        )
+
 
 def run_backfill():
     logger.info("====================================================================")
@@ -112,7 +120,7 @@ def run_backfill():
         ORDER BY timestamp ASC, node_idx ASC;
     """
     df_traffic_raw = pd.read_sql(query_traffic, con=engine)
-    
+
     if df_traffic_raw.empty:
         logger.warning("⚠️ Table gold.fact_traffic_series vide. Impossible de procéder au backfill.")
         return
@@ -120,11 +128,11 @@ def run_backfill():
     # Pivotage des données pour obtenir un index temporel propre
     df_pivot = df_traffic_raw.pivot(index="timestamp", columns="node_idx", values="properties_vitesse")
     df_pivot.index = pd.to_datetime(df_pivot.index)
-    
+
     # Remplacement des valeurs manquantes par la vitesse par défaut
     default_speed = float(os.getenv("LYON_DEFAULT_SPEED", 30.0))
     vitesse_matrix_raw = np.nan_to_num(df_pivot.values, nan=default_speed)
-    
+
     all_timestamps = df_pivot.index.tolist()
     num_timestamps = len(all_timestamps)
     logger.info(f"✅ {num_timestamps} instants observés chargés de l'historique de trafic.")
@@ -159,9 +167,9 @@ def run_backfill():
         logger.error(f"❌ Scaler introuvable à {SCALER_PATH}. Un entraînement préalable est requis.")
         sys.exit(1)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SpatioTemporalGCN(in_channels=5, hidden_channels=HIDDEN_CHANNELS, out_channels=len(HORIZONS)).to(device)
-    
+
     if os.path.exists(MODEL_PATH):
         logger.info(f"🤖 Chargement du modèle STGCN depuis {MODEL_PATH} sur le périphérique {device}...")
         model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
@@ -176,7 +184,7 @@ def run_backfill():
 
     # 6. Boucle d'inférence séquentielle optimisée
     logger.info("🤖 Exécution des prédictions de rattrapage...")
-    
+
     all_predictions_records = []
     scale_vec = scaler.scale_.reshape(-1, 1)
     mean_vec = scaler.mean_.reshape(-1, 1)
@@ -188,7 +196,7 @@ def run_backfill():
     # Utilisation d'un gestionnaire de contexte sans gradients pour accélérer l'inférence
     with torch.no_grad():
         edge_index = edge_index.to(device)
-        
+
         for idx, (original_idx, ts) in enumerate(eligible_missing_timestamps):
             if (idx + 1) % 50 == 0 or idx + 1 == total_to_predict:
                 logger.info(f"   - Progression : {idx + 1}/{total_to_predict} instants traités...")
@@ -232,21 +240,25 @@ def run_backfill():
                     target_time = ts + datetime.timedelta(minutes=horizon_minutes)
                     predicted_speed = float(preds_kmh[node_idx, h_idx])
 
-                    all_predictions_records.append({
-                        "prediction_timestamp": ts,
-                        "target_timestamp": target_time,
-                        "horizon_minutes": horizon_minutes,
-                        "node_idx": node_idx,
-                        "properties_twgid": twgid,
-                        "predicted_speed": round(predicted_speed, 2),
-                        "real_speed": round(last_real_speed, 2),
-                        "geometry_wgs84_wkt": geom
-                    })
+                    all_predictions_records.append(
+                        {
+                            "prediction_timestamp": ts,
+                            "target_timestamp": target_time,
+                            "horizon_minutes": horizon_minutes,
+                            "node_idx": node_idx,
+                            "properties_twgid": twgid,
+                            "predicted_speed": round(predicted_speed, 2),
+                            "real_speed": round(last_real_speed, 2),
+                            "geometry_wgs84_wkt": geom,
+                        }
+                    )
 
     # 7. Insertion massive en base de données
     if all_predictions_records:
         df_preds_all = pd.DataFrame(all_predictions_records)
-        logger.info(f"📥 Insertion de {len(df_preds_all)} lignes de prédictions dans PostgreSQL (gold.fact_predictions_traffic)...")
+        logger.info(
+            f"📥 Insertion de {len(df_preds_all)} lignes de prédictions dans PostgreSQL (gold.fact_predictions_traffic)..."
+        )
         try:
             df_preds_all.to_sql(
                 name="fact_predictions_traffic",
@@ -254,7 +266,7 @@ def run_backfill():
                 schema="gold",
                 if_exists="append",
                 index=False,
-                chunksize=10000
+                chunksize=10000,
             )
             logger.info("✅ Insertion en base de données effectuée avec succès.")
         except Exception as e:
@@ -264,6 +276,7 @@ def run_backfill():
     logger.info("====================================================================")
     logger.info(f"🎉 Rattrapage complété : {total_to_predict} instants d'historique prédits.")
     logger.info("====================================================================")
+
 
 if __name__ == "__main__":
     run_backfill()

@@ -1,4 +1,5 @@
 import os
+
 from sqlalchemy import create_engine, text
 
 DATABASE_URL = "postgresql+psycopg2://lyonflow:lyonflow_password@postgres:5432/lyonflow"
@@ -13,7 +14,7 @@ with engine.connect() as conn:
     """)
     for row in conn.execute(query).fetchall():
         print(row)
-        
+
     print("\n--- Locks ---")
     lock_query = text("""
         SELECT t.schemaname, t.relname, l.mode, l.granted, l.pid, a.query

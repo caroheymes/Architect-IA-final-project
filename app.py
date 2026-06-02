@@ -1,17 +1,14 @@
-# -*- coding: utf-8 -*-
-import streamlit as st
-import pandas as pd
-import numpy as np
 import os
+
+import numpy as np
+import pandas as pd
+import streamlit as st
 from sqlalchemy import create_engine, text
 
-st.set_page_code_info = {
-    "page_title": "LyonFlow - Traffic Prediction",
-    "page_icon": "🚦",
-    "layout": "wide"
-}
+st.set_page_code_info = {"page_title": "LyonFlow - Traffic Prediction", "page_icon": "🚦", "layout": "wide"}
 
-st.markdown("""
+st.markdown(
+    """
     <style>
     .main-title {
         font-size: 3rem;
@@ -34,10 +31,15 @@ st.markdown("""
         text-align: center;
     }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 st.markdown('<div class="main-title">🚦 LyonFlow</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Plateforme temps réel de prédiction de trafic - Métropole de Lyon</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="subtitle">Plateforme temps réel de prédiction de trafic - Métropole de Lyon</div>',
+    unsafe_allow_html=True,
+)
 
 # Database Connection Status
 DB_USER = os.getenv("POSTGRES_USER", "lyonflow")
@@ -68,31 +70,29 @@ st.sidebar.info("""
     - **Base de données**: PostgreSQL
 """)
 
+
 def get_mlflow_runs():
     import mlflow
     from mlflow.tracking import MlflowClient
-    
+
     mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
     client = MlflowClient(tracking_uri=mlflow_uri)
     try:
-        runs = client.search_runs(
-            experiment_ids=["7"],
-            order_by=["attribute.start_time DESC"],
-            max_results=15
-        )
+        runs = client.search_runs(experiment_ids=["7"], order_by=["attribute.start_time DESC"], max_results=15)
         return runs
     except Exception:
         return []
 
+
 def get_mlflow_artifact_plot_for_run(run_id):
     import mlflow
     from mlflow.tracking import MlflowClient
-    
+
     mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
     client = MlflowClient(tracking_uri=mlflow_uri)
-    
+
     plot_subpath = "plots/stratified_error_analysis.png"
-    
+
     try:
         local_path = client.download_artifacts(run_id, plot_subpath)
         if os.path.exists(local_path):
@@ -101,92 +101,88 @@ def get_mlflow_artifact_plot_for_run(run_id):
         pass
     return None
 
+
 def get_mlflow_metrics_history_for_run(run_id):
     import mlflow
     from mlflow.tracking import MlflowClient
-    import pandas as pd
-    
+
     mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
     client = MlflowClient(tracking_uri=mlflow_uri)
-    
+
     try:
         history_loss = client.get_metric_history(run_id, "train_loss_std")
         history_mae = client.get_metric_history(run_id, "test_mae_kmh")
-        
+
         epochs_loss = [m.step for m in history_loss]
         values_loss = [m.value for m in history_loss]
-        
+
         epochs_mae = [m.step for m in history_mae]
         values_mae = [m.value for m in history_mae]
-        
+
         df_loss = pd.DataFrame({"Epoch": epochs_loss, "Train Loss (std)": values_loss}).sort_values("Epoch")
         df_mae = pd.DataFrame({"Epoch": epochs_mae, "Test MAE (km/h)": values_mae}).sort_values("Epoch")
-        
+
         df_metrics = pd.merge(df_loss, df_mae, on="Epoch", how="outer")
         return df_metrics
     except Exception:
         return None
 
+
 def plot_training_curves(df_metrics):
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
-    
+
     fig = make_subplots(
-        rows=1, cols=2, 
-        subplot_titles=(
-            "📉 Perte d'entraînement (Perte Normalisée / MSE std)", 
-            "📈 MAE de validation (km/h)"
-        )
+        rows=1,
+        cols=2,
+        subplot_titles=("📉 Perte d'entraînement (Perte Normalisée / MSE std)", "📈 MAE de validation (km/h)"),
     )
-    
+
     # 1. Train Loss Curve
     fig.add_trace(
         go.Scatter(
-            x=df_metrics["Epoch"], 
-            y=df_metrics["Train Loss (std)"], 
+            x=df_metrics["Epoch"],
+            y=df_metrics["Train Loss (std)"],
             mode="lines+markers",
             name="Perte d'entraînement (std)",
             line=dict(color="#1E3A8A", width=3),
             marker=dict(size=6, color="#1E3A8A"),
-            hovertemplate="Époque %{x}<br>Perte std: %{y:.4f}<extra></extra>"
+            hovertemplate="Époque %{x}<br>Perte std: %{y:.4f}<extra></extra>",
         ),
-        row=1, col=1
+        row=1,
+        col=1,
     )
-    
+
     # 2. Test MAE Curve
     fig.add_trace(
         go.Scatter(
-            x=df_metrics["Epoch"], 
-            y=df_metrics["Test MAE (km/h)"], 
+            x=df_metrics["Epoch"],
+            y=df_metrics["Test MAE (km/h)"],
             mode="lines+markers",
             name="MAE de validation (km/h)",
             line=dict(color="#10B981", width=3),
             marker=dict(size=6, color="#10B981"),
-            hovertemplate="Époque %{x}<br>MAE: %{y:.2f} km/h<extra></extra>"
+            hovertemplate="Époque %{x}<br>MAE: %{y:.2f} km/h<extra></extra>",
         ),
-        row=1, col=2
+        row=1,
+        col=2,
     )
-    
+
     fig.update_layout(
-        height=400, 
+        height=400,
         template="plotly_white",
         showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        ),
-        margin=dict(l=30, r=30, t=50, b=30)
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=30, r=30, t=50, b=30),
     )
-    
+
     fig.update_xaxes(title_text="Époque", gridcolor="#E5E7EB", row=1, col=1)
     fig.update_xaxes(title_text="Époque", gridcolor="#E5E7EB", row=1, col=2)
     fig.update_yaxes(title_text="Perte standardisée", gridcolor="#E5E7EB", row=1, col=1)
     fig.update_yaxes(title_text="MAE (km/h)", gridcolor="#E5E7EB", row=1, col=2)
-    
+
     return fig
+
 
 # Dynamic MLflow Run Selector in Sidebar
 st.sidebar.markdown("---")
@@ -202,7 +198,7 @@ if runs:
     run_id_map = {}
     run_name_map = {}
     run_status_map = {}
-    
+
     for r in runs:
         run_name = r.data.tags.get("mlflow.runName", "STGCN Run")
         status = r.info.status
@@ -211,22 +207,18 @@ if runs:
         run_id_map[label] = r.info.run_id
         run_name_map[label] = run_name
         run_status_map[label] = status
-        
+
     default_index = 0
     for idx, label in enumerate(run_options):
         if run_id_map[label] == "eb4789d2e3374056aede9faa588334c8":
             default_index = idx
             break
-            
-    selected_label = st.sidebar.selectbox(
-        "Sélectionner un entraînement :",
-        run_options,
-        index=default_index
-    )
+
+    selected_label = st.sidebar.selectbox("Sélectionner un entraînement :", run_options, index=default_index)
     selected_run_id = run_id_map[selected_label]
     selected_run_name = run_name_map[selected_label]
     selected_run_status = run_status_map[selected_label]
-    
+
     status_emoji = "🟢" if selected_run_status == "FINISHED" else "🟠" if selected_run_status == "RUNNING" else "🔴"
     st.sidebar.success(f"{status_emoji} Run actif: `{selected_run_id[:8]}`")
 else:
@@ -239,63 +231,80 @@ else:
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.markdown("""
+    st.markdown(
+        """
         <div class="metric-card">
             <h3>Segments H3 (Res 13)</h3>
             <h2 style="color: #2563EB;">~2 500</h2>
             <p>Mises à jour toutes les 5 min</p>
         </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 with col2:
-    st.markdown("""
+    st.markdown(
+        """
         <div class="metric-card">
             <h3>Modèle de Prédiction</h3>
             <h2 style="color: #059669;">ST-GRU-GNN</h2>
             <p>Spatiotemporel (MLflow)</p>
         </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 with col3:
-    st.markdown("""
+    st.markdown(
+        """
         <div class="metric-card">
             <h3>Volume Ingestion</h3>
             <h2 style="color: #D97706;">En cours...</h2>
             <p>Couche Bronze lancée</p>
         </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 st.write("---")
 
 # Reordered Tabs: Learning curves/performances are in Tab 1 (Default Active Tab)
-tab1, tab2, tab3 = st.tabs([
-    "📈 Courbes d'Apprentissage (Perte & MAE)", 
-    "🎯 Analyse d'Erreur Stratifiée", 
-    "🗺️ Visualisation Temps Réel"
-])
+tab1, tab2, tab3 = st.tabs(
+    ["📈 Courbes d'Apprentissage (Perte & MAE)", "🎯 Analyse d'Erreur Stratifiée", "🗺️ Visualisation Temps Réel"]
+)
 
 with tab1:
     st.subheader("📈 Courbes d'Apprentissage (Évolution de la Perte & MAE par Époque)")
     st.markdown("""
     Visualisez ci-dessous l'évolution de la **perte d'entraînement normalisée (MSE)** et de l'**erreur absolue moyenne (MAE)** de validation (exprimée en km/h) calculées à chaque époque.
     """)
-    
+
     df_metrics = get_mlflow_metrics_history_for_run(selected_run_id)
     ideal_plot_path = "trash/ideal.png"
     fallback_plot_path = "trash/model_metrics.png"
-    
+
     if df_metrics is not None and not df_metrics.empty:
-        st.success(f"🟢 Courbes d'apprentissage chargées en temps réel depuis MLflow pour l'entraînement : `{selected_run_name}` (`{selected_run_id}`).")
+        st.success(
+            f"🟢 Courbes d'apprentissage chargées en temps réel depuis MLflow pour l'entraînement : `{selected_run_name}` (`{selected_run_id}`)."
+        )
         fig_curves = plot_training_curves(df_metrics)
         st.plotly_chart(fig_curves, use_container_width=True)
     elif os.path.exists(ideal_plot_path):
         st.info("💡 Chargement du graphique de performance historique de référence (Cible finale de production).")
-        st.image(ideal_plot_path, caption="Courbe d'apprentissage de référence (Idéal de production)", use_container_width=True)
+        st.image(
+            ideal_plot_path,
+            caption="Courbe d'apprentissage de référence (Idéal de production)",
+            use_container_width=True,
+        )
     elif os.path.exists(fallback_plot_path):
         st.warning("⚠️ Chargement des métriques de référence initiales.")
-        st.image(fallback_plot_path, caption="Courbe d'apprentissage initiale (STGCN de base)", use_container_width=True)
+        st.image(
+            fallback_plot_path, caption="Courbe d'apprentissage initiale (STGCN de base)", use_container_width=True
+        )
     else:
-        st.error("❌ Aucun historique de performance n'a pu être trouvé (ni dynamique dans MLflow, ni statique sur le disque).")
+        st.error(
+            "❌ Aucun historique de performance n'a pu être trouvé (ni dynamique dans MLflow, ni statique sur le disque)."
+        )
 
 with tab2:
     st.subheader("🎯 Analyse d'Erreur Stratifiée (Dernier Modèle)")
@@ -306,13 +315,17 @@ with tab2:
     3. **Dispersion et Incertitude** : Analyse de l'écart-type des prédictions et des résidus d'erreurs.
     4. **Boîtes à moustaches (Boxplots)** : Distribution statistique des vitesses prédites par rapport à la réalité terrain.
     """)
-    
+
     latest_plot_path = "models/stratified_error_analysis.png"
     mlflow_plot_path = get_mlflow_artifact_plot_for_run(selected_run_id)
-    
+
     if mlflow_plot_path and os.path.exists(mlflow_plot_path):
         st.success(f"🟢 Diagnostic stratifié d'erreur récupéré depuis MLflow (Run: `{selected_run_id[:8]}`).")
-        st.image(mlflow_plot_path, caption=f"Analyse d'erreur stratifiée - MLflow (Run ID: {selected_run_id[:8]})", use_container_width=True)
+        st.image(
+            mlflow_plot_path,
+            caption=f"Analyse d'erreur stratifiée - MLflow (Run ID: {selected_run_id[:8]})",
+            use_container_width=True,
+        )
     elif os.path.exists(latest_plot_path):
         st.success("🟢 Diagnostic stratifié d'erreur récupéré localement.")
         st.image(latest_plot_path, caption="Analyse d'erreur stratifiée - Génération locale", use_container_width=True)
@@ -321,4 +334,6 @@ with tab2:
 
 with tab3:
     st.subheader("🗺️ État du réseau routier en temps réel")
-    st.info("Les données d'ingestion et de prédiction s'afficheront ici dès que le premier cycle d'orchestration Airflow aura complété l'ingestion bronze et la transformation silver.")
+    st.info(
+        "Les données d'ingestion et de prédiction s'afficheront ici dès que le premier cycle d'orchestration Airflow aura complété l'ingestion bronze et la transformation silver."
+    )

@@ -1,5 +1,6 @@
 import os
 import sys
+
 import pandas as pd
 from sqlalchemy import create_engine
 
@@ -16,6 +17,7 @@ OUTPUT_DIR = os.getenv("DATA_FOLDER", "data/in")
 # Nombre de pas temporels à exporter (par défaut 150 pour permettre un sliding window de 120)
 SEQ_LEN = int(os.getenv("SEQ_LEN_EXPORT", "150"))
 
+
 def run_export():
     """
     Exécute l'exportation des données de la couche Gold de PostgreSQL vers des fichiers CSV locaux.
@@ -25,13 +27,14 @@ def run_export():
     print("====================================================================")
     print("🚀 Démarrage du script d'export de données PostgreSQL vers CSV...")
     print("====================================================================")
-    
+
     # 1. Connexion à la base de données
     db_url = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     try:
         engine = create_engine(db_url)
         # Test de connexion rapide
         from sqlalchemy import text
+
         with engine.connect() as conn:
             conn.execute(text("SELECT 1;"))
         print(f"🔌 Connexion réussie à PostgreSQL sur {DB_HOST}:{DB_PORT} (Base: {DB_NAME})")
@@ -88,11 +91,11 @@ def run_export():
             ORDER BY timestamp ASC, node_idx ASC;
         """
         df_traffic = pd.read_sql(query_traffic, con=engine)
-        
+
         # Vérification du nombre de pas de temps réellement exportés
         unique_timestamps = df_traffic["timestamp"].nunique()
         print(f"ℹ️ Nombre de pas temporels récupérés : {unique_timestamps} (demandé : {SEQ_LEN})")
-        
+
         traffic_path = os.path.join(OUTPUT_DIR, "traffic_series.csv")
         df_traffic.to_csv(traffic_path, index=False)
         print(f"✅ Séries de trafic sauvegardées ({len(df_traffic)} lignes) -> {traffic_path}")
@@ -103,9 +106,10 @@ def run_export():
     print("\n====================================================================")
     print("🎉 Synthèse de l'exportation :")
     print(f"   - Fichiers écrits dans : {OUTPUT_DIR}")
-    print(f"   - Fichiers générés : node_mapping.csv, edges.csv, traffic_series.csv")
+    print("   - Fichiers générés : node_mapping.csv, edges.csv, traffic_series.csv")
     print(f"   - Configuration de test prête pour seq_len = {SEQ_LEN}")
     print("====================================================================")
+
 
 if __name__ == "__main__":
     run_export()

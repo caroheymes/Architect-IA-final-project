@@ -1,6 +1,7 @@
 import time
-import numpy as np
+
 import h3
+import numpy as np
 import pyproj
 from shapely.geometry import LineString, Polygon, shape
 from shapely.ops import unary_union
@@ -10,6 +11,7 @@ GLOBAL_TRANSFORMER = pyproj.Transformer.from_crs("EPSG:2154", "EPSG:4326", alway
 
 _h3shape_cache = {}
 
+
 def h3shape_merge_cached(h3_id_list):
     if not h3_id_list:
         return None
@@ -18,7 +20,7 @@ def h3shape_merge_cached(h3_id_list):
     key = tuple(unique_hexes)
     if key in _h3shape_cache:
         return _h3shape_cache[key]
-    
+
     try:
         val = shape(h3.cells_to_h3shape(unique_hexes))
     except Exception:
@@ -27,16 +29,17 @@ def h3shape_merge_cached(h3_id_list):
             boundary = h3.cell_to_boundary(h)
             polygons.append(Polygon([(lon, lat) for lat, lon in boundary]))
         val = unary_union(polygons)
-        
+
     _h3shape_cache[key] = val
     return val
 
-engine = create_engine('postgresql+psycopg2://lyonflow:lyonflow_password@postgres:5432/lyonflow')
+
+engine = create_engine("postgresql+psycopg2://lyonflow:lyonflow_password@postgres:5432/lyonflow")
 with engine.connect() as conn:
     snap = conn.execute(text("SELECT raw_data FROM bronze.trafic_vitesse_brute LIMIT 1")).fetchone()
     raw_payload = snap[0]
-    features = raw_payload.get('features', [])
-    geoms = [LineString(f['geometry']['coordinates']) for f in features if f.get('geometry')]
+    features = raw_payload.get("features", [])
+    geoms = [LineString(f["geometry"]["coordinates"]) for f in features if f.get("geometry")]
 
     print("Running pipeline to get H3 cells...", flush=True)
     num_pts_per_segment = []
@@ -51,10 +54,10 @@ with engine.connect() as conn:
         for p in pts:
             xs.append(p.x)
             ys.append(p.y)
-            
+
     lons, lats = GLOBAL_TRANSFORMER(xs, ys)
     flat_hexes = [h3.latlng_to_cell(lat, lon, 13) for lat, lon in zip(lats, lons)]
-    
+
     hexes_per_segment = []
     start_idx = 0
     for count in num_pts_per_segment:
@@ -64,9 +67,9 @@ with engine.connect() as conn:
     print("\n--- Running 1st Snapshot (Cache cold) ---", flush=True)
     t0 = time.time()
     results_1 = [h3shape_merge_cached(h) for h in hexes_per_segment]
-    print(f"Cold run took {time.time()-t0:.4f}s", flush=True)
+    print(f"Cold run took {time.time() - t0:.4f}s", flush=True)
 
     print("\n--- Running 2nd Snapshot (Cache hot) ---", flush=True)
     t0 = time.time()
     results_2 = [h3shape_merge_cached(h) for h in hexes_per_segment]
-    print(f"Hot run took {time.time()-t0:.4f}s", flush=True)
+    print(f"Hot run took {time.time() - t0:.4f}s", flush=True)

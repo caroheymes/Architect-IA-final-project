@@ -15,6 +15,13 @@ ignore = [
     "F401",   # unused imports — too noisy on initial adoption
     "E402",   # module-level import not at top — needed for sys.path hacks in tests
     "B905",   # zip without strict — not critical
+    "W291",   # trailing whitespace in SQL multiline strings — not auto-fixable
+    "W293",   # blank line contains whitespace in SQL strings — same reason
+    "B904",   # raise from in except — too invasive for existing code
+    "B006",   # mutable default argument — false positive on list defaults
+    "B007",   # unused loop variable — common pattern with enumerate
+    "F841",   # unused variable — max_i/max_j kept for readability
+    "E712",   # comparison to False — pandas filter pattern
 ]
 
 [tool.ruff.lint.isort]
