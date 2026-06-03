@@ -13,6 +13,7 @@ x-airflow-common:
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-lyonflow}:${POSTGRES_PASSWORD:-lyonflow_password}@postgres:5432/airflow
     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-FB-g8349RhF25P_Yw8vYg4_r6R14gVp61937f_cR_34=}
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX: 'true'
     # Grand Lyon API Credentials
     API_LOGIN: ${API_LOGIN}
     API_PASSWORD: ${API_PASSWORD}
@@ -32,7 +33,7 @@ x-airflow-common:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
-    - D:/donnée_histo_pour_demoday:/opt/airflow/data
+    - ./data/historical:/opt/airflow/data
     - .:/opt/airflow/project # Mount project root for direct access to shared scripts
   user: "50000:0"
   depends_on:
@@ -54,7 +55,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./postgres_backup:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lyonflow} -d ${POSTGRES_DB:-lyonflow}"]
       interval: 5s
@@ -64,8 +65,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.50'
-          memory: 2G
+          cpus: '2.00'
+          memory: 4G
 
   # ==========================================
   # 2. TRACKING LAYER (MLflow Server)
@@ -228,8 +229,26 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.25'
-          memory: 1G
+          cpus: '1.50'
+          memory: 2G
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok_tunnel
+    volumes:
+      - ./ngrok.yml:/etc/ngrok.yml
+    command:
+      - "start"
+      - "--all"
+      - "--config"
+      - "/etc/ngrok.yml"
+    ports:
+      - "4040:4040"
+    depends_on:
+      - airflow-webserver
+      - streamlit
+      - postgres
+    restart: always
 
 
 

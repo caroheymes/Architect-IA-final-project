@@ -1,0 +1,14 @@
+version: "3"
+agent:
+  authtoken: "2jySesrKhPFeKyaLoR5e1nGskDy_6WvvvKUnbtH8d6m4Q6kLh"
+tunnels:
+  streamlit:
+    proto: http
+    addr: streamlit:8501
+    domain: musically-unextradited-genevive.ngrok-free.dev
+  airflow:
+    proto: http
+    addr: airflow-webserver:8080
+  postgres:
+    proto: tcp
+    addr: postgres:5432

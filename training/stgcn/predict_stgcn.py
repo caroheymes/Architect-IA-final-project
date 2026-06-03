@@ -245,11 +245,21 @@ def run_prediction():
 
     # 5. Instanciation du modèle et chargement des poids
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SpatioTemporalGCN(in_channels=5, hidden_channels=HIDDEN_CHANNELS, out_channels=len(HORIZONS)).to(device)
 
     if os.path.exists(MODEL_PATH):
         logger.info(f"🤖 Chargement des poids du modèle STGCN depuis {MODEL_PATH}...")
-        model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+        state_dict = torch.load(MODEL_PATH, map_location=device)
+        
+        # Détection dynamique de hidden_channels pour éviter les erreurs de taille
+        hidden_size = HIDDEN_CHANNELS
+        if "temporal_gru.weight_ih_l0" in state_dict:
+            detected_hidden = state_dict["temporal_gru.weight_ih_l0"].shape[0] // 3
+            if detected_hidden != hidden_size:
+                logger.info(f"🔄 Détection dynamique de HIDDEN_CHANNELS : {detected_hidden} (configuré : {hidden_size})")
+                hidden_size = detected_hidden
+        
+        model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_size, out_channels=len(HORIZONS)).to(device)
+        model.load_state_dict(state_dict)
         model.eval()
     else:
         logger.error(
