@@ -224,6 +224,29 @@ def run_prediction():
         logger.info(f"💾 Chargement du scaler entraîné depuis {SCALER_PATH}...")
         with open(SCALER_PATH, "rb") as f:
             scaler = pickle.load(f)
+            
+        # Ajustement dynamique du scaler si le nombre de nœuds a changé
+        if hasattr(scaler, "n_features_in_") and scaler.n_features_in_ != num_nodes:
+            logger.warning(
+                f"⚠️ Discordance du Scaler : entraîné sur {scaler.n_features_in_} nœuds, "
+                f"mais {num_nodes} nœuds détectés actuellement. Ajustement dynamique en cours..."
+            )
+            old_n = scaler.n_features_in_
+            if num_nodes > old_n:
+                extra_count = num_nodes - old_n
+                avg_mean = np.mean(scaler.mean_)
+                avg_var = np.mean(scaler.var_)
+                avg_scale = np.mean(scaler.scale_)
+                
+                scaler.mean_ = np.concatenate([scaler.mean_, np.full(extra_count, avg_mean)])
+                scaler.var_ = np.concatenate([scaler.var_, np.full(extra_count, avg_var)])
+                scaler.scale_ = np.concatenate([scaler.scale_, np.full(extra_count, avg_scale)])
+                scaler.n_features_in_ = num_nodes
+            else:
+                scaler.mean_ = scaler.mean_[:num_nodes]
+                scaler.var_ = scaler.var_[:num_nodes]
+                scaler.scale_ = scaler.scale_[:num_nodes]
+                scaler.n_features_in_ = num_nodes
     else:
         logger.warning(
             f"⚠️ Scaler introuvable à l'emplacement : {SCALER_PATH}. Ajustement temporaire sur l'échantillon courant."

@@ -5,10 +5,14 @@ tunnels:
   streamlit:
     proto: http
     addr: streamlit:8501
-    domain: musically-unextradited-genevive.ngrok-free.dev
+    domain: lyonflow-app.ngrok.io
   airflow:
     proto: http
     addr: airflow-webserver:8080
   postgres:
     proto: tcp
     addr: postgres:5432
+  mlflow:
+    proto: http
+    addr: mlflow:5000
+
