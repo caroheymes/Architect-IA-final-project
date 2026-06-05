@@ -135,6 +135,187 @@ st.markdown(
         aspect-ratio: 1 / 1 !important;
         width: 100% !important;
     }
+
+    /* Style and enlarge Streamlit Tabs to look like premium card tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 16px !important;
+        background-color: #F1F5F9 !important; /* Premium Slate-100 */
+        padding: 12px !important; /* Slightly more padding for larger buttons */
+        border-radius: 18px !important; /* Smoother corner matching larger buttons */
+        border: 1px solid #E2E8F0 !important;
+        margin-bottom: 35px !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: space-evenly !important; /* Distribute tabs evenly */
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.04) !important;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        font-size: 2.5rem !important; /* Truly massive, same or larger than the metric cards! */
+        font-weight: 700 !important;
+        padding-left: 36px !important; /* Luxurious padding for larger text */
+        padding-right: 36px !important;
+        padding-top: 20px !important;
+        padding-bottom: 20px !important;
+        border-radius: 16px !important; /* Matches larger button proportions */
+        border: none !important;
+        background-color: transparent !important;
+        color: #475569 !important; /* Premium Slate-600 */
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        height: auto !important;
+        flex-grow: 1 !important; /* Make tabs distribute width nicely */
+        text-align: center !important;
+        
+        /* Shorter tabs don't require wrapping limits */
+        white-space: nowrap !important; /* Shorter titles fit beautifully on one line */
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #FFFFFF !important;
+        color: #1E3A8A !important; /* Blue-900 */
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06) !important;
+        transform: translateY(-2px) !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        font-size: 2.6rem !important; /* Ultra-dominant active tab header */
+        font-weight: 800 !important;
+        color: #FFFFFF !important;
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%) !important; /* Royal/Lyon Blue gradient */
+        box-shadow: 0 10px 25px rgba(59, 130, 246, 0.35) !important;
+        transform: translateY(-1px) !important;
+    }
+    
+    /* Remove default bottom line of Streamlit tabs */
+    .stTabs [data-baseweb="tab-border"] {
+        display: none !important;
+    }
+    
+    /* Force inner texts of tab buttons to inherit state-driven styles (color, size, weight) */
+    .stTabs [data-baseweb="tab"] p,
+    .stTabs [data-baseweb="tab"] span,
+    .stTabs [data-baseweb="tab"] div,
+    .stTabs [data-baseweb="tab"] label {
+        color: inherit !important;
+        font-size: inherit !important;
+        font-weight: inherit !important;
+    }
+    
+    /* Explicit hover override for children of inactive tab buttons */
+    .stTabs [data-baseweb="tab"]:hover p,
+    .stTabs [data-baseweb="tab"]:hover span,
+    .stTabs [data-baseweb="tab"]:hover div,
+    .stTabs [data-baseweb="tab"]:hover label {
+        color: #1E3A8A !important; /* Force beautiful deep blue on hover of inactive tabs */
+    }
+    
+    /* Explicit active selected hover states for children (must remain brilliant white!) */
+    .stTabs [aria-selected="true"] p,
+    .stTabs [aria-selected="true"] span,
+    .stTabs [aria-selected="true"] div,
+    .stTabs [aria-selected="true"] label,
+    .stTabs [aria-selected="true"]:hover p,
+    .stTabs [aria-selected="true"]:hover span,
+    .stTabs [aria-selected="true"]:hover div,
+    .stTabs [aria-selected="true"]:hover label {
+        color: #FFFFFF !important; /* Force brilliant white on selected tab hover */
+    }
+    
+    /* --- Styles for Tab Content Body Text --- */
+    /* Target all paragraphs and text inside tabs to be beautifully readable, clean, and professional */
+    .stTabs [role="tabpanel"] p, 
+    .stTabs [role="tabpanel"] [data-testid="stMarkdownContainer"] p,
+    .stTabs [role="tabpanel"] [data-testid="stMarkdownContainer"] span {
+        font-size: 1.0rem !important; /* Compact, readable body text size! */
+        line-height: 1.5 !important; /* Comfortable spacing */
+        color: #334155 !important; /* Warm Slate-700 for high-end readability */
+    }
+    
+    /* Target lists inside tabs */
+    .stTabs [role="tabpanel"] li,
+    .stTabs [role="tabpanel"] [data-testid="stMarkdownContainer"] li {
+        font-size: 0.95rem !important;
+        line-height: 1.5 !important;
+        color: #334155 !important;
+        margin-bottom: 6px !important;
+    }
+    
+    /* Target subheaders inside tabs (e.g. st.subheader) */
+    .stTabs [role="tabpanel"] h3,
+    .stTabs [role="tabpanel"] [data-testid="stMarkdownContainer"] h3 {
+        font-size: 1.45rem !important; /* Balanced subheadings */
+        font-weight: 700 !important;
+        color: #0F172A !important; /* Deep Slate-900 */
+        margin-top: 20px !important;
+        margin-bottom: 10px !important;
+    }
+    
+    /* Target secondary headers inside tabs (like st.markdown("### ...")) */
+    .stTabs [role="tabpanel"] h2,
+    .stTabs [role="tabpanel"] [data-testid="stMarkdownContainer"] h2 {
+        font-size: 1.75rem !important;
+        font-weight: 800 !important;
+        color: #0F172A !important;
+        margin-top: 25px !important;
+        margin-bottom: 12px !important;
+    }
+
+    /* Target inline code blocks inside tabs */
+    .stTabs [role="tabpanel"] code,
+    .stTabs [role="tabpanel"] [data-testid="stMarkdownContainer"] code {
+        font-size: 0.95rem !important;
+        background-color: #F1F5F9 !important;
+        padding: 3px 6px !important;
+        border-radius: 6px !important;
+        font-family: 'Fira Code', 'Courier New', monospace !important;
+    }
+    
+    /* Target Streamlit standard alert/notification boxes inside tabs */
+    .stTabs [role="tabpanel"] [data-testid="stNotification"] p,
+    .stTabs [role="tabpanel"] [data-testid="stNotification"] div,
+    .stTabs [role="tabpanel"] [data-testid="stAlert"] p {
+        font-size: 1.0rem !important;
+        line-height: 1.4 !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Target LaTeX formulas inside tabs */
+    .stTabs [role="tabpanel"] .katex {
+        font-size: 1.0rem !important;
+    }
+
+    /* --- Overrides for Specific Widgets to prevent bloat --- */
+    
+    /* Restore standard compact sizes for Streamlit st.metric widgets inside tab panels */
+    .stTabs [role="tabpanel"] [data-testid="stMetricValue"],
+    .stTabs [role="tabpanel"] [data-testid="stMetricValue"] div,
+    .stTabs [role="tabpanel"] [data-testid="stMetricValue"] p,
+    .stTabs [role="tabpanel"] [data-testid="stMetricValue"] span {
+        font-size: 1.6rem !important; /* Keep actual metric value prominent and compact */
+        font-weight: 700 !important;
+        color: #1E293B !important;
+    }
+    
+    .stTabs [role="tabpanel"] [data-testid="stMetricLabel"],
+    .stTabs [role="tabpanel"] [data-testid="stMetricLabel"] div,
+    .stTabs [role="tabpanel"] [data-testid="stMetricLabel"] p,
+    .stTabs [role="tabpanel"] [data-testid="stMetricLabel"] span {
+        font-size: 0.85rem !important; /* Neat, compact label size */
+        font-weight: 600 !important;
+        color: #64748B !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }
+    
+    /* Target Streamlit standard captions specifically inside tabs to keep them small and elegant */
+    .stTabs [role="tabpanel"] [data-testid="stCaptionContainer"],
+    .stTabs [role="tabpanel"] [data-testid="stCaptionContainer"] p,
+    .stTabs [role="tabpanel"] [data-testid="stCaptionContainer"] div,
+    .stTabs [role="tabpanel"] [data-testid="stCaptionContainer"] span {
+        font-size: 0.825rem !important; /* Elegant compact caption size */
+        color: #64748B !important; /* Muted Slate-500 */
+        line-height: 1.4 !important;
+    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -209,23 +390,48 @@ def get_ingestion_volume():
 
 
 
-def get_mlflow_runs():
-    """Récupère les 15 derniers runs MLflow de l'expérience STGCN (id `7`).
+def _get_mlflow_client():
+    """Crée et valide une connexion MlflowClient.
 
-    Se connecte au serveur MLflow via l'URI configurée dans `MLFLOW_TRACKING_URI`
-    (par défaut `http://mlflow:5000`), puis interroge l'historique des runs trié
-    du plus récent au plus ancien.
+    Tente de se connecter à la variable d'environnement MLFLOW_TRACKING_URI ou, à défaut,
+    fait une double tentative :
+      1. http://mlflow:5000 (résolution interne Docker pour Streamlit dans le réseau)
+      2. http://localhost:5000 (résolution hôte locale pour le développement hors-Docker)
+    """
+    from mlflow.tracking import MlflowClient
+
+    # Si l'utilisateur a configuré une URI spécifique, on l'utilise directement
+    configured_uri = os.getenv("MLFLOW_TRACKING_URI")
+    if configured_uri:
+        return MlflowClient(tracking_uri=configured_uri), configured_uri
+
+    # Sinon, on teste en premier http://mlflow:5000, puis http://localhost:5000
+    for uri in ["http://mlflow:5000", "http://localhost:5000"]:
+        try:
+            client = MlflowClient(tracking_uri=uri)
+            # On teste rapidement la connexion en listant une expérience
+            client.search_experiments(max_results=1)
+            return client, uri
+        except Exception:
+            continue
+
+    # Fallback par défaut sans validation si tout a échoué
+    return MlflowClient(tracking_uri="http://mlflow:5000"), "http://mlflow:5000"
+
+
+def get_mlflow_runs():
+    """Récupère les 15 derniers runs MLflow de l'expérience STGCN.
+
+    Se connecte au serveur MLflow via le client d'Uri résolue automatiquement,
+    puis interroge l'historique des runs trié du plus récent au plus ancien.
 
     Returns:
         list[mlflow.entities.Run]: Liste des runs trouvés, ou liste vide si le
         serveur MLflow est indisponible / injoignable.
     """
     import mlflow  # noqa: F401  (import local pour ne pas ralentir le boot Streamlit)
-    from mlflow.tracking import MlflowClient
-
-    mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
-    client = MlflowClient(tracking_uri=mlflow_uri)
     try:
+        client, uri = _get_mlflow_client()
         runs = client.search_runs(experiment_ids=["6", "7", "8"], order_by=["attribute.start_time DESC"], max_results=30)
         return runs
     except Exception:
@@ -249,12 +455,8 @@ def get_mlflow_artifact_plot_for_run(run_id):
         n'existe pas ou si le téléchargement a échoué.
     """
     import mlflow  # noqa: F401
-    from mlflow.tracking import MlflowClient
-
-    mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
-    client = MlflowClient(tracking_uri=mlflow_uri)
-
     try:
+        client, uri = _get_mlflow_client()
         # Lister les fichiers dans le dossier 'plots' du run pour trouver dynamiquement le PNG
         artifacts = client.list_artifacts(run_id, "plots")
         for art in artifacts:
@@ -262,7 +464,7 @@ def get_mlflow_artifact_plot_for_run(run_id):
                 local_path = client.download_artifacts(run_id, art.path)
                 if os.path.exists(local_path):
                     return local_path
-                    
+
         # Fallback de secours si list_artifacts échoue ou ne renvoie rien
         plot_subpath = "plots/stratified_error_analysis.png"
         local_path = client.download_artifacts(run_id, plot_subpath)
@@ -292,12 +494,8 @@ def get_mlflow_metrics_history_for_run(run_id):
         `None` si la récupération a échoué.
     """
     import mlflow  # noqa: F401
-    from mlflow.tracking import MlflowClient
-
-    mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
-    client = MlflowClient(tracking_uri=mlflow_uri)
-
     try:
+        client, uri = _get_mlflow_client()
         # On lit l'historique complet de chaque métrique (un point par époque loggée).
         history_loss = client.get_metric_history(run_id, "train_loss_std")
         history_mae = client.get_metric_history(run_id, "test_mae_kmh")
@@ -427,9 +625,10 @@ if runs:
                 model_type = "STGCN"
         run_model_map[label] = model_type
 
+    # Sélectionner par défaut le run le plus récent ayant le statut "FINISHED"
     default_index = 0
-    for idx, label in enumerate(run_options):
-        if run_id_map[label] == "eb4789d2e3374056aede9faa588334c8":
+    for idx, r in enumerate(runs):
+        if r.info.status == "FINISHED":
             default_index = idx
             break
 
@@ -443,10 +642,10 @@ if runs:
     st.sidebar.success(f"{status_emoji} Run actif: `{selected_run_id[:8]}`")
 else:
     st.sidebar.warning("⚠️ Connexion directe MLflow indisponible.")
-    selected_run_id = "eb4789d2e3374056aede9faa588334c8"
-    selected_run_name = "STGCN Production Run"
+    selected_run_id = "a368b69d77134047b461ea001a3cc6dd"
+    selected_run_name = "STGCN_v2_20260603_002414"
     selected_run_status = "FINISHED"
-    selected_run_model = "STGCN"
+    selected_run_model = "STGCN_V2_AdamW"
 
 # Main page columns
 col1, col2, col3 = st.columns(3)
@@ -492,15 +691,15 @@ with col3:
 
 st.write("---")
 
-# Reordered Tabs: Learning curves/performances are in Tab 1 (Default Active Tab)
-tab1, tab2, tab3, tab4 = st.tabs([
-    "📈 Courbes d'Apprentissage (Perte & MAE)", 
-    "🎯 Analyse d'Erreur Stratifiée", 
-    "📊 Observabilité & Dérive (Evidently AI)",
-    "🗺️ Visualisation Temps Réel"
+# Ordered Tabs as requested by user
+tab_pred, tab_obs, tab_err, tab_curves = st.tabs([
+    "Prévisions",
+    "Observabilité",
+    "Erreurs",
+    "Apprentissage"
 ])
 
-with tab1:
+with tab_curves:
     st.subheader("📈 Courbes d'Apprentissage (Évolution de la Perte & MAE par Époque)")
     st.markdown("""
     Visualisez ci-dessous l'évolution de la **perte d'entraînement normalisée (MSE)** et de l'**erreur absolue moyenne (MAE)** de validation (exprimée en km/h) calculées à chaque époque.
@@ -533,7 +732,7 @@ with tab1:
             "❌ Aucun historique de performance n'a pu être trouvé (ni dynamique dans MLflow, ni statique sur le disque)."
         )
 
-with tab2:
+with tab_err:
     st.subheader("🎯 Analyse d'Erreur Stratifiée (Dernier Modèle)")
     st.markdown("""
     Cette vue présente l'évaluation fine de la précision réelle du modèle découpée en 4 analyses clés pour garantir l'honnêteté et la transparence scientifique :
@@ -559,7 +758,7 @@ with tab2:
     else:
         st.info("💡 Le diagnostic d'erreur stratifiée sera généré lors du prochain entraînement final de production.")
 
-with tab3:
+with tab_obs:
     st.subheader("📊 Observabilité du Modèle & Dérive Temporelle (Evidently AI)")
     st.markdown("""
     Ce tableau de bord d'observabilité compare en continu la précision prédictive du modèle STGCN 
@@ -712,7 +911,7 @@ with tab3:
         st.info("💡 Le rapport de monitoring Evidently est en cours de génération ou sera produit automatiquement par le run quotidien d'Airflow.")
         st.image("https://raw.githubusercontent.com/evidentlyai/evidently/main/docs/book/_static/evidently_logo.png", width=300)
 
-with tab4:
+with tab_pred:
     st.subheader("🗺️ Visualisation Spatiotemporelle & Prédictions de Trafic")
     st.markdown("""
     Cette carte interactive affiche l'état actuel et prévu des segments routiers de la Métropole de Lyon.
