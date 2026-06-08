@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 dag_monitoring.py
 
@@ -9,9 +8,10 @@ Le script d'analyse d'observabilité Evidently AI est soumis de façon isolée a
 Formulation impersonnelle pour la conformité de la documentation de projet.
 """
 
-import os
-import logging
 from datetime import datetime, timedelta
+import logging
+import os
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
@@ -23,13 +23,13 @@ def trigger_evidently_monitoring_on_ray():
     Soumet le script d'analyse d'observabilité Evidently AI au cluster Ray
     via l'API Jobs Dashboard et suit son exécution jusqu'à complétion.
     """
-    import requests
     import time
+
+    from airflow.hooks.base import BaseHook
+    import requests
 
     ray_dashboard_url = "http://ray-head:8265"
     submit_url = f"{ray_dashboard_url}/api/jobs/"
-
-    from airflow.hooks.base import BaseHook
 
     # Récupération dynamique et sécurisée des secrets depuis les connexions Airflow
     try:
@@ -118,5 +118,3 @@ with DAG(
         task_id='trigger_evidently_monitoring',
         python_callable=trigger_evidently_monitoring_on_ray,
     )
-
-    run_monitoring_task

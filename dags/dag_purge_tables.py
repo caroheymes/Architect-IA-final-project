@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 """
 dag_purge_tables.py
 ===================
 DAG Airflow de maintenance quotidienne exécuté chaque jour à 07h00.
 Il purge de manière automatisée et sécurisée les données obsolètes (fenêtre glissante de 2 jours)
 dans les tables PostgreSQL bronze.trafic_vitesse_brute et silver.trafic_vitesse_propre,
-puis libère l'espace disque inutilisé à l'aide d'un VACUUM.
+ puis libère l'espace disque inutilisé à l'aide d'un VACUUM.
 """
 
-import os
-import logging
 from datetime import datetime, timedelta
+import logging
+import os
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from sqlalchemy import create_engine, text

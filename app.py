@@ -1,15 +1,16 @@
 import os
 import time
 
-def log_time(tag):
-    print(f"[ANTIGRAVITY_LOG] [{time.strftime('%Y-%m-%d %H:%M:%S')}.{int((time.time()%1)*1000):03d}] {tag}", flush=True)
-
-log_time("Script import/startup start")
-
 import numpy as np
 import pandas as pd
 import streamlit as st
 
+
+def log_time(tag):
+    print(f"[ANTIGRAVITY_LOG] [{time.strftime('%Y-%m-%d %H:%M:%S')}.{int((time.time()%1)*1000):03d}] {tag}", flush=True)
+
+
+log_time("Script import/startup start")
 log_time("Imports completed")
 
 st.set_page_config(
@@ -467,7 +468,7 @@ def get_processed_predictions_cached(db_url=None):
 
 def load_evidently_report(path):
     if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return f.read()
     return ""
 
@@ -658,7 +659,7 @@ with tab_obs:
     if os.path.exists(report_json_path):
         try:
             import json
-            with open(report_json_path, "r", encoding="utf-8") as fj:
+            with open(report_json_path, encoding="utf-8") as fj:
                 metrics_data = json.load(fj)
             
             for metric in metrics_data.get("metrics", []):
@@ -1072,7 +1073,7 @@ with tab_pred:
 
                 else:
                     # Render with Plotly Mapbox
-                    if not "Points" in map_type_sel and len(df_map_data) > 500:
+                    if "Points" not in map_type_sel and len(df_map_data) > 500:
                         st.warning("⚠️ **Attention :** Le rendu de plus de 500 tracés de lignes avec Plotly Mapbox peut fortement ralentir ou figer le navigateur. Pour une fluidité maximale, nous vous recommandons d'utiliser le moteur **Streamlit natif** (recommandé et actif par défaut).")
                     if "Points" in map_type_sel:
                         fig_map = px.scatter_mapbox(
