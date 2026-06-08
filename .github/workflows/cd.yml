@@ -100,7 +100,25 @@ jobs:
       - name: Set kubeconfig
         run: |
           mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          if [ -z "${{ secrets.KUBE_CONFIG_STAGING }}" ]; then
+            echo "::error::The secret KUBE_CONFIG_STAGING is empty or not configured in your GitHub repository secrets!"
+            echo "Please go to Settings > Secrets and variables > Actions in your GitHub repository and add KUBE_CONFIG_STAGING."
+            exit 1
+          fi
+          
+          # Try decoding from base64. If it contains apiVersion, write it. Otherwise, try plain text.
+          DECODED=$(echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d 2>/dev/null || true)
+          if echo "$DECODED" | grep -q "apiVersion:"; then
+            echo "$DECODED" > $HOME/.kube/config
+            echo "Success: Kubeconfig decoded from Base64."
+          elif echo "${{ secrets.KUBE_CONFIG_STAGING }}" | grep -q "apiVersion:"; then
+            echo "${{ secrets.KUBE_CONFIG_STAGING }}" > $HOME/.kube/config
+            echo "Success: Kubeconfig written as plain text."
+          else
+            echo "::error::The KUBE_CONFIG_STAGING secret does not seem to contain a valid Kubeconfig (missing apiVersion:)."
+            exit 1
+          fi
+          chmod 600 $HOME/.kube/config
 
       - name: Update image tags in manifests
         run: |
@@ -139,7 +157,25 @@ jobs:
       - name: Set kubeconfig
         run: |
           mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          if [ -z "${{ secrets.KUBE_CONFIG_STAGING }}" ]; then
+            echo "::error::The secret KUBE_CONFIG_STAGING is empty or not configured in your GitHub repository secrets!"
+            echo "Please go to Settings > Secrets and variables > Actions in your GitHub repository and add KUBE_CONFIG_STAGING."
+            exit 1
+          fi
+          
+          # Try decoding from base64. If it contains apiVersion, write it. Otherwise, try plain text.
+          DECODED=$(echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d 2>/dev/null || true)
+          if echo "$DECODED" | grep -q "apiVersion:"; then
+            echo "$DECODED" > $HOME/.kube/config
+            echo "Success: Kubeconfig decoded from Base64."
+          elif echo "${{ secrets.KUBE_CONFIG_STAGING }}" | grep -q "apiVersion:"; then
+            echo "${{ secrets.KUBE_CONFIG_STAGING }}" > $HOME/.kube/config
+            echo "Success: Kubeconfig written as plain text."
+          else
+            echo "::error::The KUBE_CONFIG_STAGING secret does not seem to contain a valid Kubeconfig (missing apiVersion:)."
+            exit 1
+          fi
+          chmod 600 $HOME/.kube/config
 
       - name: Healthcheck PostgreSQL
         run: |
