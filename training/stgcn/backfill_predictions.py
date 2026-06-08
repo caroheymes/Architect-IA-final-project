@@ -188,7 +188,7 @@ def run_backfill():
         logger.info(f"💾 Chargement du scaler depuis {SCALER_PATH}...")
         with open(SCALER_PATH, "rb") as f:
             scaler = pickle.load(f)
-            
+
         # Ajustement dynamique du scaler si le nombre de nœuds a changé
         if hasattr(scaler, "n_features_in_") and scaler.n_features_in_ != num_nodes:
             logger.warning(
@@ -201,7 +201,7 @@ def run_backfill():
                 avg_mean = np.mean(scaler.mean_)
                 avg_var = np.mean(scaler.var_)
                 avg_scale = np.mean(scaler.scale_)
-                
+
                 scaler.mean_ = np.concatenate([scaler.mean_, np.full(extra_count, avg_mean)])
                 scaler.var_ = np.concatenate([scaler.var_, np.full(extra_count, avg_var)])
                 scaler.scale_ = np.concatenate([scaler.scale_, np.full(extra_count, avg_scale)])
@@ -220,15 +220,17 @@ def run_backfill():
     if os.path.exists(MODEL_PATH):
         logger.info(f"🤖 Chargement du modèle STGCN depuis {MODEL_PATH} sur le périphérique {device}...")
         state_dict = torch.load(MODEL_PATH, map_location=device)
-        
+
         # Détection dynamique de hidden_channels pour éviter les erreurs de taille
         hidden_size = HIDDEN_CHANNELS
         if "temporal_gru.weight_ih_l0" in state_dict:
             detected_hidden = state_dict["temporal_gru.weight_ih_l0"].shape[0] // 3
             if detected_hidden != hidden_size:
-                logger.info(f"🔄 Détection dynamique de HIDDEN_CHANNELS : {detected_hidden} (configuré : {hidden_size})")
+                logger.info(
+                    f"🔄 Détection dynamique de HIDDEN_CHANNELS : {detected_hidden} (configuré : {hidden_size})"
+                )
                 hidden_size = detected_hidden
-                
+
         model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_size, out_channels=len(HORIZONS)).to(device)
         model.load_state_dict(state_dict)
         model.eval()
@@ -314,7 +316,9 @@ def run_backfill():
             # Insertion intermédiaire périodique pour éviter d'accumuler trop d'enregistrements en RAM (OOM de Ray)
             if (idx + 1) % 15 == 0 and all_predictions_records:
                 df_temp = pd.DataFrame(all_predictions_records)
-                logger.info(f"📥 [Lots] Insertion intermédiaire de {len(df_temp)} lignes de prédictions (instants traités : {idx + 1}/{total_to_predict})...")
+                logger.info(
+                    f"📥 [Lots] Insertion intermédiaire de {len(df_temp)} lignes de prédictions (instants traités : {idx + 1}/{total_to_predict})..."
+                )
                 try:
                     df_temp.to_sql(
                         name="fact_predictions_traffic",
@@ -322,7 +326,7 @@ def run_backfill():
                         schema="gold",
                         if_exists="append",
                         index=False,
-                        chunksize=10000
+                        chunksize=10000,
                     )
                     all_predictions_records.clear()
                 except Exception as e:
@@ -332,7 +336,9 @@ def run_backfill():
     # 7. Insertion des derniers enregistrements restants
     if all_predictions_records:
         df_preds_all = pd.DataFrame(all_predictions_records)
-        logger.info(f"📥 Insertion finale de {len(df_preds_all)} lignes de prédictions dans PostgreSQL (gold.fact_predictions_traffic)...")
+        logger.info(
+            f"📥 Insertion finale de {len(df_preds_all)} lignes de prédictions dans PostgreSQL (gold.fact_predictions_traffic)..."
+        )
         try:
             df_preds_all.to_sql(
                 name="fact_predictions_traffic",

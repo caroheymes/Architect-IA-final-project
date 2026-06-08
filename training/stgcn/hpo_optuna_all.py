@@ -32,9 +32,7 @@ from model import SpatioTemporalGCN
 from sqlalchemy import create_engine
 
 # Logger
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("LyonFlow-STGCN-HPO-Comparison")
 
 # Environment & DB Configs
@@ -69,6 +67,7 @@ def load_all_data():
     if USE_LOCAL_CSV:
         logger.info(f"📁 [CACHE] Chargement local depuis les fichiers CSV dans {DATA_FOLDER}...")
         from dataset import load_graph_topology_from_csv, load_traffic_series_from_csv
+
         num_nodes, edge_index = load_graph_topology_from_csv(DATA_FOLDER)
         vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = load_traffic_series_from_csv(DATA_FOLDER)
     else:
@@ -101,20 +100,24 @@ def objective_v1(trial):
 
     # Construction du dataset
     train_loader, test_loader, scaler = build_sliding_dataset(
-        vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos,
-        seq_len=SEQ_LEN, edge_index_tensor=edge_index, num_nodes=num_nodes,
-        test_split=0.2, batch_size=batch_size, horizons=[1],
+        vitesse_matrix_raw,
+        hour_sin,
+        hour_cos,
+        day_sin,
+        day_cos,
+        seq_len=SEQ_LEN,
+        edge_index_tensor=edge_index,
+        num_nodes=num_nodes,
+        test_split=0.2,
+        batch_size=batch_size,
+        horizons=[1],
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SpatioTemporalGCN(
-        in_channels=5, hidden_channels=hidden_channels, out_channels=1
-    ).to(device)
+    model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_channels, out_channels=1).to(device)
 
     # Optimiseur Adam classique pour la V1
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=lr, weight_decay=weight_decay
-    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     mean_tensor = torch.tensor(scaler.mean_, dtype=torch.float, device=device).view(-1, 1)
     scale_tensor = torch.tensor(scaler.scale_, dtype=torch.float, device=device).view(-1, 1)
@@ -175,20 +178,24 @@ def objective_v2(trial):
     vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = traffic_data
 
     train_loader, test_loader, scaler = build_sliding_dataset(
-        vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos,
-        seq_len=SEQ_LEN, edge_index_tensor=edge_index, num_nodes=num_nodes,
-        test_split=0.2, batch_size=batch_size, horizons=[1],
+        vitesse_matrix_raw,
+        hour_sin,
+        hour_cos,
+        day_sin,
+        day_cos,
+        seq_len=SEQ_LEN,
+        edge_index_tensor=edge_index,
+        num_nodes=num_nodes,
+        test_split=0.2,
+        batch_size=batch_size,
+        horizons=[1],
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SpatioTemporalGCN(
-        in_channels=5, hidden_channels=hidden_channels, out_channels=1
-    ).to(device)
+    model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_channels, out_channels=1).to(device)
 
     # Optimiseur AdamW avec découplage de la décroissance des poids (V2)
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=lr, weight_decay=weight_decay
-    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     mean_tensor = torch.tensor(scaler.mean_, dtype=torch.float, device=device).view(-1, 1)
     scale_tensor = torch.tensor(scaler.scale_, dtype=torch.float, device=device).view(-1, 1)
@@ -250,7 +257,7 @@ def run_full_hpo_comparison():
     # 3. Create/Run Optuna Study for STGCN V1
     logger.info("🎯 Lancement de l'étude Optuna pour STGCN V1 (Adam)...")
     study_v1 = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
-    
+
     with mlflow.start_run(run_name="HPO_STGCN_V1") as run_v1:
         study_v1.optimize(objective_v1, n_trials=N_TRIALS)
         best_mae_v1 = study_v1.best_value
@@ -264,7 +271,7 @@ def run_full_hpo_comparison():
     # 4. Create/Run Optuna Study for STGCN V2
     logger.info("🎯 Lancement de l'étude Optuna pour STGCN V2 (AdamW)...")
     study_v2 = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
-    
+
     with mlflow.start_run(run_name="HPO_STGCN_V2") as run_v2:
         study_v2.optimize(objective_v2, n_trials=N_TRIALS)
         best_mae_v2 = study_v2.best_value
@@ -277,7 +284,7 @@ def run_full_hpo_comparison():
 
     # 5. Determine the overall Champion model
     logger.info("⚔️ Comparaison des modèles et détermination du Champion en cours...")
-    
+
     if best_mae_v1 < best_mae_v2:
         champion_name = "STGCN_V1_Adam"
         champion_mae = best_mae_v1
@@ -299,20 +306,28 @@ def run_full_hpo_comparison():
 
         # Entraîner le Champion final avec les hyperparamètres optimaux pour sauvegarder le modèle final
         logger.info(f"💾 Entraînement final du modèle Champion {champion_name} pour enregistrer les poids...")
-        
+
         num_nodes, edge_index = topology_data
         vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = traffic_data
 
         train_loader, test_loader, scaler = build_sliding_dataset(
-            vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos,
-            seq_len=SEQ_LEN, edge_index_tensor=edge_index, num_nodes=num_nodes,
-            test_split=0.2, batch_size=champion_params["batch_size"], horizons=[1],
+            vitesse_matrix_raw,
+            hour_sin,
+            hour_cos,
+            day_sin,
+            day_cos,
+            seq_len=SEQ_LEN,
+            edge_index_tensor=edge_index,
+            num_nodes=num_nodes,
+            test_split=0.2,
+            batch_size=champion_params["batch_size"],
+            horizons=[1],
         )
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = SpatioTemporalGCN(
-            in_channels=5, hidden_channels=champion_params["hidden_channels"], out_channels=1
-        ).to(device)
+        model = SpatioTemporalGCN(in_channels=5, hidden_channels=champion_params["hidden_channels"], out_channels=1).to(
+            device
+        )
 
         if champion_name == "STGCN_V1_Adam":
             optimizer = torch.optim.Adam(
@@ -335,14 +350,16 @@ def run_full_hpo_comparison():
                 batch = batch.to(device)
                 optimizer.zero_grad()
                 predictions = model(batch.x, batch.edge_index)
-                
+
                 y_kmh = batch.y * scale_tensor.repeat(batch.num_graphs, 1) + mean_tensor.repeat(batch.num_graphs, 1)
                 weights = torch.where(
                     y_kmh < 10.0,
                     torch.tensor(weight_jam, device=device),
-                    torch.where(y_kmh < 30.0, torch.tensor(weight_slow, device=device), torch.tensor(1.0, device=device)),
+                    torch.where(
+                        y_kmh < 30.0, torch.tensor(weight_slow, device=device), torch.tensor(1.0, device=device)
+                    ),
                 )
-                
+
                 loss = (((predictions - batch.y) ** 2) * weights).mean()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -352,13 +369,13 @@ def run_full_hpo_comparison():
         os.makedirs("models", exist_ok=True)
         champion_model_path = "models/stgcn_champion.pt"
         champion_scaler_path = "models/stgcn_champion_scaler.pkl"
-        
+
         torch.save(model.state_dict(), champion_model_path)
         with open(champion_scaler_path, "wb") as f:
             pickle.dump(scaler, f)
-            
+
         logger.info("💾 Champion model and scaler saved locally.")
-        
+
         # Logged to MLflow as ultimate production assets
         try:
             mlflow.log_artifact(champion_model_path, artifact_path="champion_model")

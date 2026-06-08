@@ -41,9 +41,7 @@ from model import SpatioTemporalGCN
 from sqlalchemy import create_engine
 
 # Logger
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("LyonFlow-STGCN-VPS")
 
 # ============================================================================
@@ -52,9 +50,7 @@ logger = logging.getLogger("LyonFlow-STGCN-VPS")
 # Le .env du projet pointe vers localhost (stack Docker interne). On force
 # la cible publique du VPS pour taper directement sur les gold tables.
 DB_USER = os.getenv("POSTGRES_USER", "lyonflow")
-DB_PASSWORD = os.getenv(
-    "POSTGRES_PASSWORD", "xYjM0hwMgkXtOABJdl7NOWsimWOzvbQcLLx9cKSE"
-)
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "xYjM0hwMgkXtOABJdl7NOWsimWOzvbQcLLx9cKSE")
 DB_HOST = os.getenv("POSTGRES_HOST", "51.83.159.224")
 DB_PORT = os.getenv("POSTGRES_PORT", "5432")
 DB_NAME = os.getenv("POSTGRES_DB", "lyonflow")
@@ -68,8 +64,8 @@ MLFLOW_URL = os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns")
 # ============================================================================
 # HYPERPARAMÈTRES — adaptés à la taille du dataset VPS
 # ============================================================================
-SEQ_LEN = int(os.getenv("SEQ_LEN", "120"))            # 10h d'historique
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "2"))        # prudent sur gros graphes
+SEQ_LEN = int(os.getenv("SEQ_LEN", "120"))  # 10h d'historique
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "2"))  # prudent sur gros graphes
 HIDDEN_CHANNELS = int(os.getenv("HIDDEN_CHANNELS", "128"))
 DROPOUT = float(os.getenv("DROPOUT", "0.1"))
 LEARNING_RATE = float(os.getenv("LEARNING_RATE", "0.001"))
@@ -79,8 +75,8 @@ PATIENCE = int(os.getenv("PATIENCE", "10"))
 MODEL_OUT = os.getenv("MODEL_OUT", "models/stgcn_vps_latest.pt")
 
 # Pondérations de la loss (sous-prédiction des bouchons = sur-coût)
-WEIGHT_JAM = float(os.getenv("WEIGHT_JAM", "15.0"))      # < 10 km/h
-WEIGHT_SLOW = float(os.getenv("WEIGHT_SLOW", "5.0"))      # 10-30 km/h
+WEIGHT_JAM = float(os.getenv("WEIGHT_JAM", "15.0"))  # < 10 km/h
+WEIGHT_SLOW = float(os.getenv("WEIGHT_SLOW", "5.0"))  # 10-30 km/h
 WEIGHT_NORMAL = float(os.getenv("WEIGHT_NORMAL", "1.0"))  # > 30 km/h
 
 
@@ -112,15 +108,20 @@ def train_model():
     # --- 4) Horizons de prédiction (en pas de 5 min) -----------------------
     HORIZONS_STR = os.getenv("HORIZONS", "1")
     HORIZONS = [int(h) for h in HORIZONS_STR.split(",") if h.strip()]
-    logger.info(
-        f"🔮 Horizons configurés : {HORIZONS} "
-        f"({[h * 5 for h in HORIZONS]} minutes)"
-    )
+    logger.info(f"🔮 Horizons configurés : {HORIZONS} ({[h * 5 for h in HORIZONS]} minutes)")
 
     train_loader, test_loader, scaler = build_sliding_dataset(
-        vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos,
-        seq_len=SEQ_LEN, edge_index_tensor=edge_index, num_nodes=num_nodes,
-        test_split=0.2, batch_size=BATCH_SIZE, horizons=HORIZONS,
+        vitesse_matrix_raw,
+        hour_sin,
+        hour_cos,
+        day_sin,
+        day_cos,
+        seq_len=SEQ_LEN,
+        edge_index_tensor=edge_index,
+        num_nodes=num_nodes,
+        test_split=0.2,
+        batch_size=BATCH_SIZE,
+        horizons=HORIZONS,
     )
 
     # --- 5) Modèle & optimiseur -------------------------------------------
@@ -131,36 +132,30 @@ def train_model():
         out_channels=len(HORIZONS),
         dropout=DROPOUT,
     ).to(device)
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY
-    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
-    mean_tensor = torch.tensor(
-        scaler.mean_, dtype=torch.float, device=device
-    ).view(-1, 1)
-    scale_tensor = torch.tensor(
-        scaler.scale_, dtype=torch.float, device=device
-    ).view(-1, 1)
+    mean_tensor = torch.tensor(scaler.mean_, dtype=torch.float, device=device).view(-1, 1)
+    scale_tensor = torch.tensor(scaler.scale_, dtype=torch.float, device=device).view(-1, 1)
 
     logger.info(f"🚀 Starting STGCN VPS Training on device: {device.type.upper()}")
 
-    with mlflow.start_run(
-        run_name=f"STGCN_VPS_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    ):
-        mlflow.log_params({
-            "seq_len": SEQ_LEN,
-            "batch_size": BATCH_SIZE,
-            "hidden_channels": HIDDEN_CHANNELS,
-            "lr": LEARNING_RATE,
-            "weight_decay": WEIGHT_DECAY,
-            "epochs": EPOCHS,
-            "weight_jam": WEIGHT_JAM,
-            "weight_slow": WEIGHT_SLOW,
-            "weight_normal": WEIGHT_NORMAL,
-            "db_host": DB_HOST,
-            "num_nodes": num_nodes,
-            "num_edges": int(edge_index.shape[1]),
-        })
+    with mlflow.start_run(run_name=f"STGCN_VPS_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"):
+        mlflow.log_params(
+            {
+                "seq_len": SEQ_LEN,
+                "batch_size": BATCH_SIZE,
+                "hidden_channels": HIDDEN_CHANNELS,
+                "lr": LEARNING_RATE,
+                "weight_decay": WEIGHT_DECAY,
+                "epochs": EPOCHS,
+                "weight_jam": WEIGHT_JAM,
+                "weight_slow": WEIGHT_SLOW,
+                "weight_normal": WEIGHT_NORMAL,
+                "db_host": DB_HOST,
+                "num_nodes": num_nodes,
+                "num_edges": int(edge_index.shape[1]),
+            }
+        )
 
         best_test_mae = float("inf")
         patience = PATIENCE
@@ -178,10 +173,7 @@ def train_model():
                 predictions = model(batch.x, batch.edge_index)
 
                 # De-normalize target for km/h-based weighted penalties
-                y_kmh = (
-                    batch.y * scale_tensor.repeat(batch.num_graphs, 1)
-                    + mean_tensor.repeat(batch.num_graphs, 1)
-                )
+                y_kmh = batch.y * scale_tensor.repeat(batch.num_graphs, 1) + mean_tensor.repeat(batch.num_graphs, 1)
                 weights = torch.where(
                     y_kmh < 10.0,
                     torch.tensor(WEIGHT_JAM, device=device),
@@ -207,25 +199,14 @@ def train_model():
                     batch = batch.to(device)
                     predictions = model(batch.x, batch.edge_index)
                     B_curr = batch.num_graphs
-                    preds_kmh = (
-                        predictions * scale_tensor.repeat(B_curr, 1)
-                        + mean_tensor.repeat(B_curr, 1)
-                    )
-                    targets_kmh = (
-                        batch.y * scale_tensor.repeat(B_curr, 1)
-                        + mean_tensor.repeat(B_curr, 1)
-                    )
-                    mae_metric += F.l1_loss(
-                        preds_kmh, targets_kmh, reduction="sum"
-                    ).item()
+                    preds_kmh = predictions * scale_tensor.repeat(B_curr, 1) + mean_tensor.repeat(B_curr, 1)
+                    targets_kmh = batch.y * scale_tensor.repeat(B_curr, 1) + mean_tensor.repeat(B_curr, 1)
+                    mae_metric += F.l1_loss(preds_kmh, targets_kmh, reduction="sum").item()
 
-            test_mae_kmh = mae_metric / (
-                len(test_loader.dataset) * num_nodes * len(HORIZONS)
-            )
+            test_mae_kmh = mae_metric / (len(test_loader.dataset) * num_nodes * len(HORIZONS))
 
             logger.info(
-                f"Epoch {epoch:02d}/{EPOCHS} | Train Loss (std): {epoch_loss:.4f} "
-                f"| Test MAE (km/h): {test_mae_kmh:.4f}"
+                f"Epoch {epoch:02d}/{EPOCHS} | Train Loss (std): {epoch_loss:.4f} | Test MAE (km/h): {test_mae_kmh:.4f}"
             )
             mlflow.log_metric("train_loss_std", epoch_loss, step=epoch)
             mlflow.log_metric("test_mae_kmh", test_mae_kmh, step=epoch)
@@ -234,14 +215,11 @@ def train_model():
                 best_test_mae = test_mae_kmh
                 patience_counter = 0
                 best_epoch = epoch
-                best_model_state = {
-                    k: v.cpu() for k, v in model.state_dict().items()
-                }
+                best_model_state = {k: v.cpu() for k, v in model.state_dict().items()}
                 os.makedirs(os.path.dirname(MODEL_OUT), exist_ok=True)
                 torch.save(model.state_dict(), MODEL_OUT)
                 logger.info(
-                    f"🏆 New best model at epoch {epoch:02d} "
-                    f"with Test MAE: {best_test_mae:.4f} km/h → {MODEL_OUT}"
+                    f"🏆 New best model at epoch {epoch:02d} with Test MAE: {best_test_mae:.4f} km/h → {MODEL_OUT}"
                 )
             else:
                 patience_counter += 1
@@ -255,8 +233,7 @@ def train_model():
         if best_model_state is not None:
             model.load_state_dict({k: v.to(device) for k, v in best_model_state.items()})
             logger.info(
-                f"♻️ Restored best model weights from epoch {best_epoch:02d} "
-                f"with Test MAE: {best_test_mae:.4f} km/h."
+                f"♻️ Restored best model weights from epoch {best_epoch:02d} with Test MAE: {best_test_mae:.4f} km/h."
             )
         else:
             os.makedirs(os.path.dirname(MODEL_OUT), exist_ok=True)
@@ -284,11 +261,8 @@ def train_model():
         all_targets = np.concatenate(all_targets)
 
         bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 120]
-        bin_labels = ["0-10", "10-20", "20-30", "30-40", "40-50",
-                      "50-60", "60-70", "70-80", "80-90", "90+"]
-        mae_by_bin, bias_by_bin, std_preds_by_bin, std_err_by_bin, count_by_bin, box_data = (
-            [], [], [], [], [], []
-        )
+        bin_labels = ["0-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80-90", "90+"]
+        mae_by_bin, bias_by_bin, std_preds_by_bin, std_err_by_bin, count_by_bin, box_data = ([], [], [], [], [], [])
         for i in range(len(bins) - 1):
             lo, hi = bins[i], bins[i + 1]
             idx = np.where((all_targets >= lo) & (all_targets < hi))[0]
@@ -307,14 +281,16 @@ def train_model():
                 count_by_bin.append(0)
                 box_data.append([])
 
-        df_analysis = pd.DataFrame({
-            "Tranche (km/h)": bin_labels,
-            "Nombre d'exemples": count_by_bin,
-            "MAE (km/h)": mae_by_bin,
-            "Biais (km/h)": bias_by_bin,
-            "Écart-type Prédiction (km/h)": std_preds_by_bin,
-            "Écart-type Erreur (km/h)": std_err_by_bin,
-        })
+        df_analysis = pd.DataFrame(
+            {
+                "Tranche (km/h)": bin_labels,
+                "Nombre d'exemples": count_by_bin,
+                "MAE (km/h)": mae_by_bin,
+                "Biais (km/h)": bias_by_bin,
+                "Écart-type Prédiction (km/h)": std_preds_by_bin,
+                "Écart-type Erreur (km/h)": std_err_by_bin,
+            }
+        )
         logger.info("\n📊 Erreurs par tranche de vitesse réelle :")
         logger.info(f"\n{df_analysis.to_string(index=False)}")
         os.makedirs("models", exist_ok=True)
@@ -354,16 +330,23 @@ def train_model():
         axs[1].legend()
 
         axs[2].plot(bin_labels, std_preds_by_bin, marker="o", color="purple", linewidth=2.5, label="Std Prédictions")
-        axs[2].plot(bin_labels, std_err_by_bin, marker="^", color="teal", linewidth=2.5, linestyle="--", label="Std Erreurs")
+        axs[2].plot(
+            bin_labels, std_err_by_bin, marker="^", color="teal", linewidth=2.5, linestyle="--", label="Std Erreurs"
+        )
         axs[2].set_title("3. Écarts-types par Tranche", fontsize=12, fontweight="bold")
         axs[2].set_xlabel("Tranche de Vitesse Réelle (km/h)")
         axs[2].set_ylabel("Écart-type (km/h)")
         axs[2].grid(True, linestyle="--", alpha=0.5)
         axs[2].legend()
 
-        axs[3].boxplot(box_data, tick_labels=bin_labels, showfliers=False, patch_artist=True,
-                       boxprops=dict(facecolor="#E6E6FA", color="#5D3FD3", alpha=0.7),
-                       medianprops=dict(color="red", linewidth=2))
+        axs[3].boxplot(
+            box_data,
+            tick_labels=bin_labels,
+            showfliers=False,
+            patch_artist=True,
+            boxprops=dict(facecolor="#E6E6FA", color="#5D3FD3", alpha=0.7),
+            medianprops=dict(color="red", linewidth=2),
+        )
         axs[3].set_title("4. Boxplots des Vitesses Prédites", fontsize=12, fontweight="bold")
         axs[3].set_xlabel("Tranche de Vitesse Réelle (km/h)")
         axs[3].set_ylabel("Vitesse Prédite (km/h)")

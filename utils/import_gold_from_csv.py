@@ -34,6 +34,7 @@ Prerequis
     pip install psycopg2-binary pandas python-dotenv pyarrow
     # .env a la racine : POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB
 """
+
 from __future__ import annotations
 
 import argparse
@@ -86,8 +87,7 @@ def get_db_config() -> dict:
     }
     if not cfg["password"]:
         logger.error(
-            "POSTGRES_PASSWORD (ou DB_PASSWORD) absent. "
-            "Renseignez-le dans .env ou via la variable d'environnement."
+            "POSTGRES_PASSWORD (ou DB_PASSWORD) absent. Renseignez-le dans .env ou via la variable d'environnement."
         )
         sys.exit(1)
     return cfg
@@ -148,8 +148,7 @@ def _execute_values(
             if len(batch) >= batch_size:
                 psycopg2.extras.execute_values(
                     cur,
-                    f'INSERT INTO "{GOLD_SCHEMA}"."{table}" ({cols_sql}) VALUES %s '
-                    f'ON CONFLICT DO NOTHING',
+                    f'INSERT INTO "{GOLD_SCHEMA}"."{table}" ({cols_sql}) VALUES %s ON CONFLICT DO NOTHING',
                     batch,
                     template=template,
                     page_size=batch_size,
@@ -160,12 +159,11 @@ def _execute_values(
         if batch:
             psycopg2.extras.execute_values(
                 cur,
-                f'INSERT INTO "{GOLD_SCHEMA}"."{table}" ({cols_sql}) VALUES %s '
-                f'ON CONFLICT DO NOTHING',
+                f'INSERT INTO "{GOLD_SCHEMA}"."{table}" ({cols_sql}) VALUES %s ON CONFLICT DO NOTHING',
                 batch,
                 template=template,
                 page_size=batch_size,
-                )
+            )
             total += len(batch)
             logger.info("  .. %s: %d inseres", table, total)
     return total
@@ -198,7 +196,9 @@ def import_node_mapping(conn, csv_path: Path, truncate: bool, dry_run: bool) -> 
     # lat, lon, updated_at -> defaut NULL / CURRENT_TIMESTAMP
     logger.info(
         "  %d lignes (node_idx 0..%d, twgid uniques: %d)",
-        len(df), int(df["node_idx"].max()), df["properties_twgid"].nunique(),
+        len(df),
+        int(df["node_idx"].max()),
+        df["properties_twgid"].nunique(),
     )
 
     if dry_run:
@@ -212,13 +212,17 @@ def import_node_mapping(conn, csv_path: Path, truncate: bool, dry_run: bool) -> 
 
     rows = (
         (
-            int(r.node_idx), r.properties_twgid,
-            int(r.matrix_i), int(r.matrix_j), r.h3_id,
+            int(r.node_idx),
+            r.properties_twgid,
+            int(r.matrix_i),
+            int(r.matrix_j),
+            r.h3_id,
         )
         for r in df.itertuples(index=False)
     )
     written = _execute_values(
-        conn, TABLE_MAPPING,
+        conn,
+        TABLE_MAPPING,
         ["node_idx", "properties_twgid", "matrix_i", "matrix_j", "h3_id"],
         rows,
     )
@@ -246,8 +250,10 @@ def import_edges(conn, csv_path: Path, truncate: bool, dry_run: bool) -> int:
             logger.info("TRUNCATE %s.%s OK", GOLD_SCHEMA, TABLE_ADJACENCY)
 
     written = _copy_from_dataframe(
-        conn, TABLE_ADJACENCY,
-        ["node_u", "node_v"], df,
+        conn,
+        TABLE_ADJACENCY,
+        ["node_u", "node_v"],
+        df,
     )
     conn.commit()
     logger.info("OK %s.%s : %d lignes importees.", GOLD_SCHEMA, TABLE_ADJACENCY, written)
@@ -266,8 +272,11 @@ def import_traffic_series(conn, csv_path: Path, truncate: bool, dry_run: bool) -
     df = df.drop_duplicates(subset=["timestamp", "node_idx"])
     logger.info(
         "  %d observations, %d timestamps, %d noeuds, plage [%s -> %s]",
-        len(df), df["timestamp"].nunique(), df["node_idx"].nunique(),
-        df["timestamp"].min(), df["timestamp"].max(),
+        len(df),
+        df["timestamp"].nunique(),
+        df["node_idx"].nunique(),
+        df["timestamp"].min(),
+        df["timestamp"].max(),
     )
 
     if dry_run:
@@ -285,8 +294,10 @@ def import_traffic_series(conn, csv_path: Path, truncate: bool, dry_run: bool) -
     out["timestamp"] = out["timestamp"].str.replace(r"(\+\d{2})(\d{2})$", r"\1:\2", regex=True)
 
     written = _copy_from_dataframe(
-        conn, TABLE_FACT,
-        ["timestamp", "node_idx", "properties_vitesse"], out,
+        conn,
+        TABLE_FACT,
+        ["timestamp", "node_idx", "properties_vitesse"],
+        out,
     )
     conn.commit()
     logger.info("OK %s.%s : %d lignes importees.", GOLD_SCHEMA, TABLE_FACT, written)
@@ -332,7 +343,9 @@ def main() -> int:
         default=str(REPO_ROOT / "data" / "raw"),
         help="Dossier contenant edges.csv, node_mapping.csv, traffic_series.csv",
     )
-    p.add_argument("--no-truncate", action="store_true", help="Garde les donnees existantes (ajout / ON CONFLICT DO NOTHING)")
+    p.add_argument(
+        "--no-truncate", action="store_true", help="Garde les donnees existantes (ajout / ON CONFLICT DO NOTHING)"
+    )
     p.add_argument("--dry-run", action="store_true", help="Lit les CSV, ne touche pas la base")
     p.add_argument("--no-parquet", action="store_true", help="Ne pas ecrire la copie parquet")
     p.add_argument("--no-refresh-mv", action="store_true", help="Ne pas rafraichir mv_fact_traffic_pivot")

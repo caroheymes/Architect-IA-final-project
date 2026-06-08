@@ -7,17 +7,16 @@ import streamlit as st
 
 
 def log_time(tag):
-    print(f"[ANTIGRAVITY_LOG] [{time.strftime('%Y-%m-%d %H:%M:%S')}.{int((time.time()%1)*1000):03d}] {tag}", flush=True)
+    print(
+        f"[ANTIGRAVITY_LOG] [{time.strftime('%Y-%m-%d %H:%M:%S')}.{int((time.time() % 1) * 1000):03d}] {tag}",
+        flush=True,
+    )
 
 
 log_time("Script import/startup start")
 log_time("Imports completed")
 
-st.set_page_config(
-    page_title="LyonFlow - Traffic Prediction",
-    page_icon="🚦",
-    layout="wide"
-)
+st.set_page_config(page_title="LyonFlow - Traffic Prediction", page_icon="🚦", layout="wide")
 
 log_time("Page config set")
 
@@ -354,7 +353,6 @@ st.sidebar.info("""
 """)
 
 
-
 def load_street_names(db_url=None):
     # Try local CSV first
     csv_path = "data/out/street_names.csv"
@@ -419,11 +417,11 @@ def get_processed_predictions_cached(db_url=None):
     df_preds["prediction_timestamp"] = pd.to_datetime(df_preds["prediction_timestamp"])
     df_preds["target_timestamp"] = pd.to_datetime(df_preds["target_timestamp"])
     df_preds["speed_diff"] = df_preds["predicted_speed"] - df_preds["real_speed"]
-    
+
     # Keep ONLY the latest prediction run/cycle to prevent duplicate lines and show accurate current status
     latest_run = df_preds["prediction_timestamp"].max()
     df_preds = df_preds[df_preds["prediction_timestamp"] == latest_run].copy()
-    
+
     # Format the latest prediction timestamp to Lyon local time (Europe/Paris) for display
     try:
         latest_run_dt = pd.to_datetime(latest_run)
@@ -434,14 +432,14 @@ def get_processed_predictions_cached(db_url=None):
         latest_run_display = latest_run_local.strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         latest_run_display = str(latest_run)
-    
+
     # Calculate centroids
     log_time("Calculating centroids from geometry_wgs84_wkt...")
     centroids = df_preds["geometry_wgs84_wkt"].apply(parse_wkt_centroid)
     df_preds["latitude"] = [c[0] for c in centroids]
     df_preds["longitude"] = [c[1] for c in centroids]
     log_time("Centroids calculated")
-    
+
     # Drop rows without coordinates
     df_preds = df_preds.dropna(subset=["latitude", "longitude"])
 
@@ -450,19 +448,19 @@ def get_processed_predictions_cached(db_url=None):
     df_streets = load_street_names(db_url)
     df_preds["properties_twgid"] = df_preds["properties_twgid"].astype(int)
     log_time("Street names loaded, merging...")
-    
+
     # Merge to join street names from the loaded DataFrame
     df_preds = df_preds.merge(df_streets, on="properties_twgid", how="left")
     df_preds["nom_rue"] = df_preds["properties_libelle"].fillna(
         df_preds["properties_twgid"].apply(lambda x: f"Segment {x}")
     )
     log_time("Merge complete")
-    
+
     # Pre-parse LINESTRING path coordinates
     log_time("Pre-parsing LINESTRING coords...")
     df_preds["parsed_path_coords"] = df_preds["geometry_wgs84_wkt"].apply(parse_linestring_coords)
     log_time("Pre-parsing complete")
-    
+
     return df_preds, data_source, latest_run_display
 
 
@@ -578,12 +576,7 @@ st.sidebar.markdown(f"""
 
 # Ordered Tabs as requested by user
 log_time("Setting up tabs...")
-tab_pred, tab_obs, tab_err, tab_curves = st.tabs([
-    "Prévisions",
-    "Observabilité",
-    "Erreurs",
-    "Apprentissage"
-])
+tab_pred, tab_obs, tab_err, tab_curves = st.tabs(["Prévisions", "Observabilité", "Erreurs", "Apprentissage"])
 
 with tab_curves:
     log_time("Entering tab_curves block")
@@ -608,9 +601,7 @@ with tab_curves:
             fallback_plot_path, caption="Courbe d'apprentissage initiale (STGCN de base)", use_container_width=True
         )
     else:
-        st.error(
-            "❌ Aucun historique de performance n'a pu être trouvé sur le disque local."
-        )
+        st.error("❌ Aucun historique de performance n'a pu être trouvé sur le disque local.")
 
 with tab_err:
     log_time("Entering tab_err block")
@@ -643,10 +634,10 @@ with tab_obs:
     sur la tranche horaire critique de la pointe du matin (07h00 à 10h00) entre la veille (Référence, $J-1$) 
     et aujourd'hui (Audit, $J$).
     """)
-    
+
     report_html_path = "data/out/monitoring_report_morning.html"
     report_json_path = "data/out/monitoring_metrics_morning.json"
-    
+
     # Lecture dynamique des métriques clés
     mae_val = None
     rmse_val = None
@@ -655,13 +646,14 @@ with tab_obs:
     drift_p_val = None
     drift_detected = None
     drift_threshold = 0.05
-    
+
     if os.path.exists(report_json_path):
         try:
             import json
+
             with open(report_json_path, encoding="utf-8") as fj:
                 metrics_data = json.load(fj)
-            
+
             for metric in metrics_data.get("metrics", []):
                 metric_type = metric.get("config", {}).get("type", "")
                 metric_name = metric.get("metric_name", "")
@@ -681,13 +673,14 @@ with tab_obs:
                         drift_threshold = val_dict.get("threshold", 0.05)
         except Exception as ej:
             st.sidebar.warning(f"⚠️ Impossible de parser les métriques JSON : {ej}")
-            
+
     # Affichage du statut décisionnel de réentraînement (p-value)
     if drift_p_val is not None:
         st.markdown("### 🤖 Statut décisionnel de réentraînement (test Kolmogorov-Smirnov)")
         if drift_p_val < drift_threshold:
             # ALERTE DÉRIVE : Rouge vibrant premium
-            st.markdown(f"""
+            st.markdown(
+                f"""
                 <div style="background-color: #FEE2E2; border-left: 6px solid #DC2626; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                     <h3 style="color: #991B1B; margin-top: 0; font-family: system-ui, -apple-system, sans-serif;">🚨 Alerte MLOps : dérive de données détectée !</h3>
                     <p style="color: #7F1D1D; font-size: 1.05rem; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
@@ -712,10 +705,13 @@ with tab_obs:
                         ⚠️ La dynamique du réseau routier a changé par rapport à la veille. Le modèle actuel risque de perdre en précision. Un réentraînement automatique via le DAG d'orchestration Airflow est préconisé.
                     </p>
                 </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
         else:
             # STATUT STABLE : Vert vibrant premium
-            st.markdown(f"""
+            st.markdown(
+                f"""
                 <div style="background-color: #ECFDF5; border-left: 6px solid #10B981; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                     <h3 style="color: #065F46; margin-top: 0; font-family: system-ui, -apple-system, sans-serif;">✅ Statut MLOps : distributions stables</h3>
                     <p style="color: #064E3B; font-size: 1.05rem; line-height: 1.6; font-family: system-ui, -apple-system, sans-serif;">
@@ -740,47 +736,43 @@ with tab_obs:
                         ℹ️ Le comportement général du trafic routier reste en adéquation avec les données d'apprentissage historiques. Aucun réentraînement n'est requis.
                     </p>
                 </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
     # Affichage des cartes d'indicateurs clés de performance
     if mae_val is not None or rmse_val is not None or r2_val is not None:
         st.markdown("### 🏆 Indicateurs de performance de l'audit (matinée courante)")
         mc1, mc2, mc3, mc4 = st.columns(4)
-        
+
         with mc1:
             if mae_val is not None:
                 st.metric(
-                    label="MAE (erreur absolue moyenne)", 
-                    value=f"{mae_val:.2f} km/h", 
+                    label="MAE (erreur absolue moyenne)",
+                    value=f"{mae_val:.2f} km/h",
                     delta="Amélioration" if mae_val < 3 else None,
-                    delta_color="normal"
+                    delta_color="normal",
                 )
         with mc2:
             if rmse_val is not None:
-                st.metric(
-                    label="RMSE (erreur quadratique moyenne)", 
-                    value=f"{rmse_val:.2f} km/h"
-                )
+                st.metric(label="RMSE (erreur quadratique moyenne)", value=f"{rmse_val:.2f} km/h")
         with mc3:
             if mape_val is not None:
-                st.metric(
-                    label="MAPE (erreur moyenne en %)", 
-                    value=f"{mape_val:.2f} %"
-                )
+                st.metric(label="MAPE (erreur moyenne en %)", value=f"{mape_val:.2f} %")
         with mc4:
             if r2_val is not None:
                 st.metric(
-                    label="R² score (coefficient de détermination)", 
-                    value=f"{r2_val:.4f}", 
-                    delta="Performance optimale" if r2_val > 0.8 else None
+                    label="R² score (coefficient de détermination)",
+                    value=f"{r2_val:.4f}",
+                    delta="Performance optimale" if r2_val > 0.8 else None,
                 )
         st.markdown("<br>", unsafe_allow_html=True)
-    
+
     if os.path.exists(report_html_path):
         import streamlit.components.v1 as components
-        
+
         st.success("🟢 Rapport d'observabilité de la pointe du matin (07h00 - 10h00) chargé avec succès.")
-        
+
         show_report = st.checkbox("Afficher le rapport d'observabilité interactif complet (Evidently AI)", value=False)
         if show_report:
             html_content = load_evidently_report(report_html_path)
@@ -788,8 +780,13 @@ with tab_obs:
         else:
             st.info("💡 Cochez la case ci-dessus pour charger le rapport interactif complet (taille : 3.8 Mo).")
     else:
-        st.info("💡 Le rapport de monitoring Evidently est en cours de génération ou sera produit automatiquement par le run quotidien d'Airflow.")
-        st.image("https://raw.githubusercontent.com/evidentlyai/evidently/main/docs/book/_static/evidently_logo.png", width=300)
+        st.info(
+            "💡 Le rapport de monitoring Evidently est en cours de génération ou sera produit automatiquement par le run quotidien d'Airflow."
+        )
+        st.image(
+            "https://raw.githubusercontent.com/evidentlyai/evidently/main/docs/book/_static/evidently_logo.png",
+            width=300,
+        )
 
 with tab_pred:
     log_time("Entering tab_pred block")
@@ -801,45 +798,45 @@ with tab_pred:
 
     if df_preds is not None and not df_preds.empty:
         # Display Data Source Status Badge
-        st.caption(f"Source des données cartographiques : **{data_source}** • Dernière prédiction : `{latest_run_display}` (Heure de Lyon)")
+        st.caption(
+            f"Source des données cartographiques : **{data_source}** • Dernière prédiction : `{latest_run_display}` (Heure de Lyon)"
+        )
 
         # 2. Filters Layout
         f_col1, f_col2, f_col3 = st.columns([1, 1.5, 1.5])
-        
+
         with f_col1:
             # Select horizon (default to 30 min)
             horizons_avail = sorted(df_preds["horizon_minutes"].unique())
             horizon_labels = {30: "🚀 +30 min", 60: "🚀 +1 heure (+60 min)", 180: "🚀 +3 heures (+180 min)"}
             horizon_sel = st.selectbox(
-                "Horizon temporel :", 
-                horizons_avail, 
-                format_func=lambda x: horizon_labels.get(x, f"+{x} min")
+                "Horizon temporel :", horizons_avail, format_func=lambda x: horizon_labels.get(x, f"+{x} min")
             )
-            
+
         with f_col2:
             # Select Metric to show
             metric_options = {
                 "predicted_speed": "🚦 Vitesse prédite (km/h)",
                 "real_speed": "🛣️ Vitesse réelle courante (km/h)",
-                "speed_diff": "📉 Écart (prédiction - réelle) (km/h)"
+                "speed_diff": "📉 Écart (prédiction - réelle) (km/h)",
             }
             metric_sel = st.selectbox(
-                "Variable à cartographier :", 
-                list(metric_options.keys()), 
-                format_func=lambda x: metric_options[x]
+                "Variable à cartographier :", list(metric_options.keys()), format_func=lambda x: metric_options[x]
             )
 
         with f_col3:
             # Vitesse filter
             min_speed = float(df_preds["predicted_speed"].min())
             max_speed = float(df_preds["predicted_speed"].max())
-            speed_range = st.slider("Filtrer par vitesse prédite (km/h) :", min_speed, max_speed, (min_speed, max_speed))
+            speed_range = st.slider(
+                "Filtrer par vitesse prédite (km/h) :", min_speed, max_speed, (min_speed, max_speed)
+            )
 
         # Filter the DataFrame
         df_filtered = df_preds[
-            (df_preds["horizon_minutes"] == horizon_sel) & 
-            (df_preds["predicted_speed"] >= speed_range[0]) & 
-            (df_preds["predicted_speed"] <= speed_range[1])
+            (df_preds["horizon_minutes"] == horizon_sel)
+            & (df_preds["predicted_speed"] >= speed_range[0])
+            & (df_preds["predicted_speed"] <= speed_range[1])
         ].copy()
 
         if not df_filtered.empty:
@@ -865,7 +862,7 @@ with tab_pred:
                 "Lent (0-15 km/h)": "red",
                 "Moyen (15-40 km/h)": "orange",
                 "Rapide (>40 km/h)": "green",
-                "Inconnu": "gray"
+                "Inconnu": "gray",
             }
 
             def get_speed_category(speed):
@@ -883,7 +880,7 @@ with tab_pred:
                 "Sous-estimation (<-10 km/h)": "blue",
                 "Précis ([-10, 10] km/h)": "green",
                 "Sur-estimation (>10 km/h)": "red",
-                "Inconnu": "gray"
+                "Inconnu": "gray",
             }
 
             def get_diff_category(diff):
@@ -905,14 +902,14 @@ with tab_pred:
                         "Moteur de rendu cartographique :",
                         ["🚀 Streamlit natif (ultra-rapide, recommandé)", "🎨 Plotly Mapbox (interactif, secondaire)"],
                         index=0,
-                        help="Sélectionnez 'Streamlit natif' pour un affichage ultra-fluide."
+                        help="Sélectionnez 'Streamlit natif' pour un affichage ultra-fluide.",
                     )
                 with opt_col2:
                     map_type_sel = st.radio(
                         "Style de représentation :",
                         ["🛣️ Lignes (tracés) - recommandé"],
                         index=0,
-                        help="Affiche le tracé exact de chaque segment routier sous forme de ligne."
+                        help="Affiche le tracé exact de chaque segment routier sous forme de ligne.",
                     )
                 with opt_col3:
                     max_segments = st.slider(
@@ -921,7 +918,7 @@ with tab_pred:
                         max_value=3000,
                         value=1400,
                         step=100,
-                        help="Limite le nombre de lignes à dessiner pour éviter de figer le navigateur. Seuls les segments les plus critiques/congestionnés seront affichés."
+                        help="Limite le nombre de lignes à dessiner pour éviter de figer le navigateur. Seuls les segments les plus critiques/congestionnés seront affichés.",
                     )
 
             # Re-prioritize and filter map data based on selection
@@ -931,10 +928,16 @@ with tab_pred:
                 # Prioritize segments to draw
                 if metric_sel == "speed_diff":
                     # Largest error differences first
-                    df_map_data = df_filtered.sort_values(by="speed_diff", key=lambda x: x.abs(), ascending=False).head(max_segments).copy()
+                    df_map_data = (
+                        df_filtered.sort_values(by="speed_diff", key=lambda x: x.abs(), ascending=False)
+                        .head(max_segments)
+                        .copy()
+                    )
                 elif metric_sel == "predicted_speed":
                     # Slowest predicted speed first
-                    df_map_data = df_filtered.sort_values(by="predicted_speed", ascending=True).head(max_segments).copy()
+                    df_map_data = (
+                        df_filtered.sort_values(by="predicted_speed", ascending=True).head(max_segments).copy()
+                    )
                 else:
                     # Slowest real speed first
                     df_map_data = df_filtered.sort_values(by="real_speed", ascending=True).head(max_segments).copy()
@@ -949,18 +952,18 @@ with tab_pred:
 
             # Define colors in Hex for native engine
             hex_color_map = {
-                "Lent (0-15 km/h)": "#E11D48",       # Beautiful red (Tailwind rose-600)
-                "Moyen (15-40 km/h)": "#F59E0B",    # Beautiful orange (Tailwind amber-500)
-                "Rapide (>40 km/h)": "#10B981",        # Beautiful green (Tailwind emerald-500)
-                "Inconnu": "#6B7280",                # Gray (Tailwind gray-500)
-                "Sous-estimation (<-10 km/h)": "#3B82F6", # Beautiful blue (Tailwind blue-500)
-                "Précis ([-10, 10] km/h)": "#10B981",    # Beautiful green (Tailwind emerald-500)
-                "Sur-estimation (>10 km/h)": "#EF4444"    # Beautiful red (Tailwind red-500)
+                "Lent (0-15 km/h)": "#E11D48",  # Beautiful red (Tailwind rose-600)
+                "Moyen (15-40 km/h)": "#F59E0B",  # Beautiful orange (Tailwind amber-500)
+                "Rapide (>40 km/h)": "#10B981",  # Beautiful green (Tailwind emerald-500)
+                "Inconnu": "#6B7280",  # Gray (Tailwind gray-500)
+                "Sous-estimation (<-10 km/h)": "#3B82F6",  # Beautiful blue (Tailwind blue-500)
+                "Précis ([-10, 10] km/h)": "#10B981",  # Beautiful green (Tailwind emerald-500)
+                "Sur-estimation (>10 km/h)": "#EF4444",  # Beautiful red (Tailwind red-500)
             }
 
             def hex_to_rgb(h_str):
-                h_str = h_str.lstrip('#')
-                return list(int(h_str[i:i+2], 16) for i in (0, 2, 4))
+                h_str = h_str.lstrip("#")
+                return list(int(h_str[i : i + 2], 16) for i in (0, 2, 4))
 
             # Render the Map in a full-width container to display a stunning large responsive square map
             col_map_mid = st.container()
@@ -969,41 +972,39 @@ with tab_pred:
                     """
                     <div id="map-section"></div>
                     """,
-                    unsafe_allow_html=True
+                    unsafe_allow_html=True,
                 )
 
                 if "Streamlit Natif" in engine_sel or "Streamlit natif" in engine_sel or "natif" in engine_sel.lower():
                     # Add color hex column to df_map_data
                     df_map_data["color"] = df_map_data["categorie"].map(hex_color_map).fillna("#6B7280")
-                    
+
                     if "Points" in map_type_sel:
                         log_time("Rendering points using st.map...")
                         st.map(
-                            df_map_data,
-                            latitude="latitude",
-                            longitude="longitude",
-                            color="color",
-                            size=15,
-                            zoom=11.5
+                            df_map_data, latitude="latitude", longitude="longitude", color="color", size=15, zoom=11.5
                         )
                         log_time("Points rendered")
                     else:
                         # Render lines with pydeck PathLayer
                         log_time("Building PyDeck path layer data...")
                         import pydeck as pdk
+
                         path_data = []
                         for idx, row in df_map_data.iterrows():
                             coords = row.get("parsed_path_coords")
                             if coords:
-                                path_data.append({
-                                    "path": coords,
-                                    "color": hex_to_rgb(row["color"]),
-                                    "name": str(row["nom_rue"]),
-                                    "val": float(row[metric_sel]),
-                                    "val_str": f"{float(row[metric_sel]):.1f}"
-                                })
+                                path_data.append(
+                                    {
+                                        "path": coords,
+                                        "color": hex_to_rgb(row["color"]),
+                                        "name": str(row["nom_rue"]),
+                                        "val": float(row[metric_sel]),
+                                        "val_str": f"{float(row[metric_sel]):.1f}",
+                                    }
+                                )
                         log_time(f"PyDeck path data built (count={len(path_data)})")
-                        
+
                         if path_data:
                             layer = pdk.Layer(
                                 "PathLayer",
@@ -1012,36 +1013,38 @@ with tab_pred:
                                 get_color="color",
                                 get_width=5,
                                 width_min_pixels=3,
-                                pickable=True
+                                pickable=True,
                             )
                             log_time("Calling st.pydeck_chart...")
-                            st.pydeck_chart(pdk.Deck(
-                                layers=[layer],
-                                initial_view_state=pdk.ViewState(
-                                    latitude=45.764043,
-                                    longitude=4.835659,
-                                    zoom=11.5,
-                                    pitch=0
+                            st.pydeck_chart(
+                                pdk.Deck(
+                                    layers=[layer],
+                                    initial_view_state=pdk.ViewState(
+                                        latitude=45.764043, longitude=4.835659, zoom=11.5, pitch=0
+                                    ),
+                                    map_style="light",
+                                    width=600,
+                                    height=600,
+                                    tooltip={
+                                        "html": "<b>Rue :</b> {name}<br/><b>Vitesse :</b> {val_str} km/h",
+                                        "style": {
+                                            "backgroundColor": "#1E293B",
+                                            "color": "white",
+                                            "fontFamily": "'Outfit', 'Inter', Arial, sans-serif",
+                                            "fontSize": "13px",
+                                            "padding": "10px",
+                                            "borderRadius": "6px",
+                                            "border": "1px solid #334155",
+                                        },
+                                    },
                                 ),
-                                map_style="light",
-                                width=600,
-                                height=600,
-                                tooltip={
-                                    "html": "<b>Rue :</b> {name}<br/><b>Vitesse :</b> {val_str} km/h",
-                                    "style": {
-                                        "backgroundColor": "#1E293B",
-                                        "color": "white",
-                                        "fontFamily": "'Outfit', 'Inter', Arial, sans-serif",
-                                        "fontSize": "13px",
-                                        "padding": "10px",
-                                        "borderRadius": "6px",
-                                        "border": "1px solid #334155"
-                                    }
-                                }
-                            ), use_container_width=True)
+                                use_container_width=True,
+                            )
                             log_time("st.pydeck_chart call complete")
                         else:
-                            st.error("❌ Erreur de génération géométrique : Impossible d'extraire les coordonnées des segments routiers.")
+                            st.error(
+                                "❌ Erreur de génération géométrique : Impossible d'extraire les coordonnées des segments routiers."
+                            )
 
                     # Display elegant legend below the map
                     if metric_sel == "speed_diff":
@@ -1055,7 +1058,7 @@ with tab_pred:
                                 <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4B5563;"><span style="height: 12px; width: 12px; background-color: #6B7280; border-radius: 50%; display: inline-block;"></span> Inconnu</span>
                             </div>
                             """,
-                            unsafe_allow_html=True
+                            unsafe_allow_html=True,
                         )
                     else:
                         st.markdown(
@@ -1068,13 +1071,15 @@ with tab_pred:
                                 <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4B5563;"><span style="height: 12px; width: 12px; background-color: #6B7280; border-radius: 50%; display: inline-block;"></span> Inconnu</span>
                             </div>
                             """,
-                            unsafe_allow_html=True
+                            unsafe_allow_html=True,
                         )
 
                 else:
                     # Render with Plotly Mapbox
                     if "Points" not in map_type_sel and len(df_map_data) > 500:
-                        st.warning("⚠️ **Attention :** Le rendu de plus de 500 tracés de lignes avec Plotly Mapbox peut fortement ralentir ou figer le navigateur. Pour une fluidité maximale, nous vous recommandons d'utiliser le moteur **Streamlit natif** (recommandé et actif par défaut).")
+                        st.warning(
+                            "⚠️ **Attention :** Le rendu de plus de 500 tracés de lignes avec Plotly Mapbox peut fortement ralentir ou figer le navigateur. Pour une fluidité maximale, nous vous recommandons d'utiliser le moteur **Streamlit natif** (recommandé et actif par défaut)."
+                        )
                     if "Points" in map_type_sel:
                         fig_map = px.scatter_mapbox(
                             df_map_data,
@@ -1085,24 +1090,24 @@ with tab_pred:
                             hover_name="nom_rue",
                             hover_data={
                                 "properties_twgid": True,
-                                "latitude": False, 
-                                "longitude": False, 
-                                metric_sel: True, 
-                                "categorie": False
+                                "latitude": False,
+                                "longitude": False,
+                                metric_sel: True,
+                                "categorie": False,
                             },
                             labels={
                                 "nom_rue": "Rue / Segment",
                                 "properties_twgid": "Identifiant (twgid)",
-                                metric_sel: "Vitesse (km/h)"
+                                metric_sel: "Vitesse (km/h)",
                             },
                             mapbox_style="carto-positron",
                             zoom=11.5,
                             center={"lat": 45.764043, "lon": 4.835659},  # Centré sur Lyon
                             height=600,
-                            title=f"État du réseau routier ({len(df_map_data)} segments affichés en mode point)"
+                            title=f"État du réseau routier ({len(df_map_data)} segments affichés en mode point)",
                         )
                         fig_map.update_traces(marker=dict(size=9, opacity=0.85))
-                        
+
                         # Design tweaks
                         fig_map.update_layout(
                             width=600,
@@ -1110,15 +1115,17 @@ with tab_pred:
                             margin={"r": 0, "t": 30, "l": 0, "b": 0},
                             legend=dict(
                                 title="Catégorie",
-                                yanchor="top", y=0.95,
-                                xanchor="left", x=0.02,
+                                yanchor="top",
+                                y=0.95,
+                                xanchor="left",
+                                x=0.02,
                                 bgcolor="rgba(255, 255, 255, 0.8)",
                                 bordercolor="#E5E7EB",
-                                borderwidth=1
-                            )
+                                borderwidth=1,
+                            ),
                         )
                         st.plotly_chart(fig_map, use_container_width=True)
-                        
+
                     else:
                         lats = []
                         lons = []
@@ -1139,35 +1146,43 @@ with tab_pred:
                                     # Use the unique index of the row to ensure each segment is treated as a separate trace/line group
                                     ids_rue.append(idx)
 
-                        df_lines = pd.DataFrame({
-                            'lat': lats,
-                            'lon': lons,
-                            'nom': noms,
-                            'vitesse': vitesses,
-                            'categorie': categories,
-                            'id_rue': ids_rue
-                        })
+                        df_lines = pd.DataFrame(
+                            {
+                                "lat": lats,
+                                "lon": lons,
+                                "nom": noms,
+                                "vitesse": vitesses,
+                                "categorie": categories,
+                                "id_rue": ids_rue,
+                            }
+                        )
 
                         if not df_lines.empty:
                             fig_map = px.line_mapbox(
                                 df_lines,
                                 lat="lat",
                                 lon="lon",
-                                line_group="id_rue",        # Relie les points de la même rue, sans relier les rues entre elles
-                                color="categorie",          # Catégorie de trafic / vitesse
+                                line_group="id_rue",  # Relie les points de la même rue, sans relier les rues entre elles
+                                color="categorie",  # Catégorie de trafic / vitesse
                                 color_discrete_map=color_map,
                                 hover_name="nom",
-                                hover_data={"lat": False, "lon": False, "vitesse": True, "id_rue": True, "categorie": False},
+                                hover_data={
+                                    "lat": False,
+                                    "lon": False,
+                                    "vitesse": True,
+                                    "id_rue": True,
+                                    "categorie": False,
+                                },
                                 labels={
                                     "nom": "Rue / Segment",
                                     "id_rue": "Identifiant de segment",
-                                    "vitesse": "Vitesse (km/h)"
+                                    "vitesse": "Vitesse (km/h)",
                                 },
                                 mapbox_style="carto-positron",
                                 zoom=11.5,
                                 center={"lat": 45.764043, "lon": 4.835659},  # Centré sur Lyon
                                 height=600,
-                                title=f"État du réseau routier (tracés des {len(df_map_data)} segments les plus critiques)"
+                                title=f"État du réseau routier (tracés des {len(df_map_data)} segments les plus critiques)",
                             )
 
                             # Map design tweaks
@@ -1177,20 +1192,26 @@ with tab_pred:
                                 margin={"r": 0, "t": 30, "l": 0, "b": 0},
                                 legend=dict(
                                     title="Catégorie",
-                                    yanchor="top", y=0.95,
-                                    xanchor="left", x=0.02,
+                                    yanchor="top",
+                                    y=0.95,
+                                    xanchor="left",
+                                    x=0.02,
                                     bgcolor="rgba(255, 255, 255, 0.8)",
                                     bordercolor="#E5E7EB",
-                                    borderwidth=1
-                                )
+                                    borderwidth=1,
+                                ),
                             )
                             # Ensure lines are bold, thick, and highly visible on the map (default is 1-2, make it 5)
                             fig_map.update_traces(line=dict(width=5))
-                            
+
                             st.plotly_chart(fig_map, use_container_width=True)
-                            st.caption(f"🛣️ Rendu de la carte en mode **lignes (tracés)** : **{df_lines['id_rue'].nunique()}** segments routiers dessinés via un tracé continu de **{len(df_lines)}** coordonnées géométriques.")
+                            st.caption(
+                                f"🛣️ Rendu de la carte en mode **lignes (tracés)** : **{df_lines['id_rue'].nunique()}** segments routiers dessinés via un tracé continu de **{len(df_lines)}** coordonnées géométriques."
+                            )
                         else:
-                            st.error("❌ Erreur de génération géométrique : Impossible d'extraire les coordonnées des segments routiers.")
+                            st.error(
+                                "❌ Erreur de génération géométrique : Impossible d'extraire les coordonnées des segments routiers."
+                            )
 
             # Model Reference card shown below the map
             st.markdown(
@@ -1210,5 +1231,7 @@ with tab_pred:
         st.info(
             "🗺️ Les données d'ingestion et de prédiction s'afficheront ici dès que le premier cycle d'orchestration Airflow aura complété l'ingestion bronze et la transformation silver."
         )
-        st.image("https://raw.githubusercontent.com/evidentlyai/evidently/main/docs/book/_static/evidently_logo.png", width=300)
-
+        st.image(
+            "https://raw.githubusercontent.com/evidentlyai/evidently/main/docs/book/_static/evidently_logo.png",
+            width=300,
+        )

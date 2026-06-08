@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, text
 DATABASE_URL = "postgresql+psycopg2://lyonflow:lyonflow_password@postgres:5432/lyonflow"
 engine = create_engine(DATABASE_URL)
 
+
 def run_bronze_fields_check():
     with engine.connect() as conn:
         print("Checking total snapshots in bronze...")

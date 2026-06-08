@@ -18,6 +18,7 @@ from airflow.operators.python import PythonOperator
 # Configuration du Logger d'Airflow
 logger = logging.getLogger("airflow.task")
 
+
 def trigger_evidently_monitoring_on_ray():
     """
     Soumet le script d'analyse d'observabilité Evidently AI au cluster Ray
@@ -41,7 +42,9 @@ def trigger_evidently_monitoring_on_ray():
         db_name = conn.schema or "lyonflow"
         logger.info("🔐 Secrets PostgreSQL récupérés avec succès depuis la connexion Airflow 'postgres_default'.")
     except Exception as e:
-        logger.warning(f"⚠️ Impossible de récupérer la connexion Airflow 'postgres_default' ({e}). Repli sur l'environnement...")
+        logger.warning(
+            f"⚠️ Impossible de récupérer la connexion Airflow 'postgres_default' ({e}). Repli sur l'environnement..."
+        )
         db_host = os.getenv("POSTGRES_HOST", "postgres")
         db_port = os.getenv("POSTGRES_PORT", "5432")
         db_user = os.getenv("POSTGRES_USER", "lyonflow")
@@ -57,9 +60,9 @@ def trigger_evidently_monitoring_on_ray():
                 "POSTGRES_USER": db_user,
                 "POSTGRES_PASSWORD": db_password,
                 "POSTGRES_DB": db_name,
-                "DATA_FOLDER_OUT": "/home/ray/project/data/out"
+                "DATA_FOLDER_OUT": "/home/ray/project/data/out",
             }
-        }
+        },
     }
 
     logger.info(f"Soumission du job de monitoring à Ray sur {submit_url}...")
@@ -93,28 +96,28 @@ def trigger_evidently_monitoring_on_ray():
                 logger.warning(f"Impossible de récupérer les logs du job : {e}")
             raise Exception(error_msg)
 
+
 # Configuration par défaut du DAG
 default_args = {
-    'owner': 'lyonflow',
-    'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=1),
+    "owner": "lyonflow",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=1),
 }
 
 with DAG(
-    dag_id='lyonflow_monitoring_pipeline',
+    dag_id="lyonflow_monitoring_pipeline",
     default_args=default_args,
-    description='Pipeline quotidien de suivi de performance et d observabilite STGCN avec Evidently AI',
-    schedule_interval='0 11 * * *',  # S'exécute chaque jour à 11h00 locale/UTC
+    description="Pipeline quotidien de suivi de performance et d observabilite STGCN avec Evidently AI",
+    schedule_interval="0 11 * * *",  # S'exécute chaque jour à 11h00 locale/UTC
     start_date=datetime(2026, 1, 1),
     catchup=False,
     max_active_runs=1,
-    tags=['lyonflow', 'monitoring', 'evidently', 'observability'],
+    tags=["lyonflow", "monitoring", "evidently", "observability"],
 ) as dag:
-
     run_monitoring_task = PythonOperator(
-        task_id='trigger_evidently_monitoring',
+        task_id="trigger_evidently_monitoring",
         python_callable=trigger_evidently_monitoring_on_ray,
     )

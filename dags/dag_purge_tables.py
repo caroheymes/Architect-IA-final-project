@@ -18,6 +18,7 @@ from sqlalchemy import create_engine, text
 # Configuration du Logger d'Airflow
 logger = logging.getLogger("airflow.task")
 
+
 def run_purge_and_vacuum():
     """
     Exécute la purge des anciennes lignes (fenêtre glissante de 2 jours)
@@ -52,7 +53,7 @@ def run_purge_and_vacuum():
             """)
             result_silver = conn.execute(query_purge_silver)
             logger.info(f"🟢 Couche Silver : {result_silver.rowcount} lignes obsolètes purgées.")
-            
+
     except Exception as e:
         logger.error(f"🔴 Échec lors de l'exécution de la purge : {e}")
         raise e
@@ -65,36 +66,36 @@ def run_purge_and_vacuum():
         with autocommit_engine.connect() as conn:
             logger.info("Exécution du VACUUM sur bronze.trafic_vitesse_brute...")
             conn.execute(text("VACUUM bronze.trafic_vitesse_brute;"))
-            
+
             logger.info("Exécution du VACUUM sur silver.trafic_vitesse_propre...")
             conn.execute(text("VACUUM silver.trafic_vitesse_propre;"))
-            
+
         logger.info("🟢 VACUUM complété avec succès ! L'espace de stockage est maintenant disponible.")
     except Exception as e:
         logger.warning(f"⚠️ Le VACUUM a échoué ou a été interrompu ({e}). Ce n'est pas bloquant pour la purge.")
 
+
 # Configuration par défaut du DAG
 default_args = {
-    'owner': 'lyonflow',
-    'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 2,
-    'retry_delay': timedelta(minutes=5),
+    "owner": "lyonflow",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
 }
 
 with DAG(
-    dag_id='lyonflow_database_purge_pipeline',
+    dag_id="lyonflow_database_purge_pipeline",
     default_args=default_args,
-    description='Purge automatique des couches Bronze et Silver de PostgreSQL (rétention 2 jours)',
-    schedule_interval='0 7 * * *',  # S'exécute tous les jours à 07h00 locale/UTC
+    description="Purge automatique des couches Bronze et Silver de PostgreSQL (rétention 2 jours)",
+    schedule_interval="0 7 * * *",  # S'exécute tous les jours à 07h00 locale/UTC
     start_date=datetime(2026, 1, 1),
     catchup=False,
     max_active_runs=1,
-    tags=['lyonflow', 'maintenance', 'db_clean'],
+    tags=["lyonflow", "maintenance", "db_clean"],
 ) as dag:
-
     purge_task = PythonOperator(
-        task_id='run_db_purge_and_vacuum',
+        task_id="run_db_purge_and_vacuum",
         python_callable=run_purge_and_vacuum,
     )
