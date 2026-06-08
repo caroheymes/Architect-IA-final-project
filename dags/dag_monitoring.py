@@ -8,9 +8,9 @@ Le script d'analyse d'observabilité Evidently AI est soumis de façon isolée a
 Formulation impersonnelle pour la conformité de la documentation de projet.
 """
 
-from datetime import datetime, timedelta
 import logging
 import os
+from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -25,8 +25,8 @@ def trigger_evidently_monitoring_on_ray():
     """
     import time
 
-    from airflow.hooks.base import BaseHook
     import requests
+    from airflow.hooks.base import BaseHook
 
     ray_dashboard_url = "http://ray-head:8265"
     submit_url = f"{ray_dashboard_url}/api/jobs/"

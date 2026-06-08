@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 test_retraining_decision.py
 ===========================
@@ -17,12 +16,12 @@ USAGE :
     python training/stgcn/test_retraining_decision.py --force --epochs 1 --no-dry-run
 """
 
-import os
-import sys
-import json
 import argparse
-import subprocess
+import json
 import logging
+import os
+import subprocess
+import sys
 
 # Configuration du logger
 logging.basicConfig(
@@ -55,7 +54,7 @@ def load_metrics(metrics_path):
         return None
     
     try:
-        with open(metrics_path, "r", encoding="utf-8") as f:
+        with open(metrics_path, encoding="utf-8") as f:
             data = json.load(f)
         return data
     except Exception as e:

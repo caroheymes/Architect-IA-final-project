@@ -7,9 +7,9 @@ dans les tables PostgreSQL bronze.trafic_vitesse_brute et silver.trafic_vitesse_
  puis libère l'espace disque inutilisé à l'aide d'un VACUUM.
 """
 
-from datetime import datetime, timedelta
 import logging
 import os
+from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -98,5 +98,3 @@ with DAG(
         task_id='run_db_purge_and_vacuum',
         python_callable=run_purge_and_vacuum,
     )
-
-    purge_task

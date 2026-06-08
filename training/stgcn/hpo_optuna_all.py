@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 hpo_optuna_all.py
 =================
@@ -16,22 +15,22 @@ Prend en charge USE_LOCAL_CSV (par défaut True) pour un entraînement ultra-rap
 
 from __future__ import annotations
 
-import os
-import logging
 import datetime
+import logging
+import os
 import pickle
+
+import mlflow
+import numpy as np
+import optuna
+import pandas as pd
+from sqlalchemy import create_engine
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sqlalchemy import create_engine
-import mlflow
-import optuna
-import numpy as np
-import pandas as pd
 
-# Import local modules
+from dataset import build_sliding_dataset, load_graph_topology, load_traffic_series
 from model import SpatioTemporalGCN
-from dataset import load_graph_topology, load_traffic_series, build_sliding_dataset
 
 # Logger
 logging.basicConfig(
@@ -359,7 +358,7 @@ def run_full_hpo_comparison():
         with open(champion_scaler_path, "wb") as f:
             pickle.dump(scaler, f)
             
-        logger.info(f"💾 Champion model and scaler saved locally.")
+        logger.info("💾 Champion model and scaler saved locally.")
         
         # Logged to MLflow as ultimate production assets
         try:
