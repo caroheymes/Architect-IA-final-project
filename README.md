@@ -92,9 +92,9 @@ docker-compose up -d --build
 
 | Service | URL locale | Description |
 | :--- | :--- | :--- |
-| **📊 Streamlit App** | [http://localhost:8501](http://localhost:8501) | Dashboard trafic en temps réel |
+| **📊 Streamlit App** | [https://lyonflow-app.ngrok.io/) | Dashboard trafic en temps réel |
 | **🧪 MLflow Tracking** | [http://localhost:5000](http://localhost:5000) | Suivi des entraînements et des modèles |
-| **⚙️ Apache Airflow** | [http://localhost:8080](http://localhost:8080) | Interface d'administration des pipelines |
+| **⚙️ Apache Airflow** | [http://localhost:8080](http://localhost:8080](https://musically-unextradited-genevive.ngrok-free.dev)) | Interface d'administration des pipelines |
 | **📈 Optuna Dashboard** | [http://localhost:8085](http://localhost:8085) | Visualisation bayésienne des hyperparamètres |
 | **⚡ Ray Dashboard** | [http://localhost:8265](http://localhost:8265) | Monitoring du cluster de calcul distribué |
 
