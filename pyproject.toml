@@ -39,3 +39,6 @@ exclude = ["logs/", "data/", "models/", "plugins/"]
 testpaths = ["tests"]
 python_files = ["test_ingest.py", "test_transform.py", "test_stgcn_model.py", "test_migrate_historical.py"]
 addopts = "-v --tb=short"
+
+[tool.ruff.format]
+line-ending = "lf"
