@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 monitoring_evidently.py
 
@@ -13,12 +12,13 @@ La jointure et l'arrondi des timestamps à la minute sont réalisés côté Pand
 Formulation impersonnelle pour la conformité de la documentation de projet.
 """
 
-import os
-import sys
 import json
 import logging
-import pandas as pd
+import os
+import sys
 from datetime import datetime
+
+import pandas as pd
 from sqlalchemy import create_engine, text
 
 # Configuration du Logger
@@ -175,9 +175,9 @@ def generate_report():
         return
 
     # 4. Import d'Evidently
-    from evidently import Report, Dataset, DataDefinition, Regression
-    from evidently.presets import RegressionPreset
+    from evidently import DataDefinition, Dataset, Regression, Report
     from evidently.metrics import ValueDrift
+    from evidently.presets import RegressionPreset
 
     # 5. Exécution du diagnostic d'observabilité
     logger.info("🤖 Préparation des objets Dataset avec DataDefinition (Evidently v0.7+)...")
