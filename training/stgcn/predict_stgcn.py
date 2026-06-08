@@ -90,10 +90,18 @@ def init_database_table(engine):
             predicted_speed REAL NOT NULL,
             real_speed REAL,
             geometry_wgs84_wkt TEXT,
+            model_name TEXT,
+            run_name TEXT,
+            run_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """
         conn.execute(text(create_table_query))
+
+        # Enforce column additions if the table already existed
+        conn.execute(text("ALTER TABLE gold.fact_predictions_traffic ADD COLUMN IF NOT EXISTS model_name TEXT;"))
+        conn.execute(text("ALTER TABLE gold.fact_predictions_traffic ADD COLUMN IF NOT EXISTS run_name TEXT;"))
+        conn.execute(text("ALTER TABLE gold.fact_predictions_traffic ADD COLUMN IF NOT EXISTS run_id TEXT;"))
 
         # Création des index pour accélérer les visualisations géographiques et temporelles
         conn.execute(
@@ -178,6 +186,9 @@ def run_prediction():
         """
         df_traffic_raw = pd.read_sql(query_traffic, con=engine)
         df_pivot = df_traffic_raw.pivot(index="timestamp", columns="node_idx", values="properties_vitesse")
+        # Assurer que df_pivot contient exactement toutes les colonnes de l'index spatial [0, ..., num_nodes-1]
+        df_pivot.columns = df_pivot.columns.astype(int)
+        df_pivot = df_pivot.reindex(columns=range(num_nodes))
 
         default_speed = float(os.getenv("LYON_DEFAULT_SPEED", 30.0))
         vitesse_matrix_raw = np.nan_to_num(df_pivot.values, nan=default_speed)
@@ -336,6 +347,15 @@ def run_prediction():
             )
 
     df_preds = pd.DataFrame(prediction_records)
+
+    # Inject model metadata into columns for offline app integration
+    model_name = os.getenv("MODEL_NAME", "STGCN_V2_AdamW")
+    run_name = os.getenv("RUN_NAME", "STGCN_v2_20260603_002414")
+    run_id = os.getenv("RUN_ID", "a368b69d77134047b461ea001a3cc6dd")
+    
+    df_preds["model_name"] = model_name
+    df_preds["run_name"] = run_name
+    df_preds["run_id"] = run_id
 
     # 8. Sauvegarde locale au format CSV (permet de récupérer le CSV sur la machine hôte)
     os.makedirs(DATA_FOLDER_OUT, exist_ok=True)

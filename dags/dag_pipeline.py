@@ -750,6 +750,9 @@ def trigger_stgcn_prediction_on_ray():
                 "POSTGRES_USER": os.getenv("POSTGRES_USER", "lyonflow"),
                 "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD", "lyonflow_password"),
                 "POSTGRES_DB": os.getenv("POSTGRES_DB", "lyonflow"),
+                "MODEL_NAME": "STGCN_V2_AdamW",
+                "RUN_NAME": "STGCN_v2_20260603_002414",
+                "RUN_ID": "a368b69d77134047b461ea001a3cc6dd",
             }
         },
     }

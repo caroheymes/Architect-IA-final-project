@@ -212,12 +212,18 @@ services:
     container_name: lyonflow-streamlit
     ports:
       - "8501:8501"
+      - "8502:8501"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-lyonflow}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lyonflow_password}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: '5432'
       POSTGRES_DB: ${POSTGRES_DB:-lyonflow}
+      PYTHONUNBUFFERED: '1'
+      STREAMLIT_SERVER_ENABLE_CORS: "false"
+      STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION: "false"
+      STREAMLIT_SERVER_HEADLESS: "true"
+      STREAMLIT_SERVER_FILE_WATCHER_TYPE: "none"
     volumes:
       - .:/opt/airflow/project
     working_dir: /opt/airflow/project

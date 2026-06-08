@@ -321,7 +321,8 @@ def train_model():
                 box_data.append([])
 
         df_analysis = pd.DataFrame({
-            "Tranche (km/h)": bin_labels,
+            "Tranche ("
+            "km/h)": bin_labels,
             "Nombre d'exemples": count_by_bin,
             "MAE (km/h)": mae_by_bin,
             "Biais (km/h)": bias_by_bin,
