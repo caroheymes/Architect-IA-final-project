@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 train_stgcn_v2.py
 =================
@@ -20,22 +19,23 @@ USAGE :
 
 from __future__ import annotations
 
-import os
-import logging
 import datetime
+import logging
+import os
 import pickle
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from sqlalchemy import create_engine
+
+import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from dataset import build_sliding_dataset, load_graph_topology, load_traffic_series
 
 # Import local modules (native resolution within training/stgcn/)
 from model import SpatioTemporalGCN
-from dataset import load_graph_topology, load_traffic_series, build_sliding_dataset
+from sqlalchemy import create_engine
 
 # Logger
 logging.basicConfig(

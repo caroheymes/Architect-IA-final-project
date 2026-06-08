@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 train_stgcn_vps.py
 ==================
@@ -12,33 +11,34 @@ déjà préparées par build_gold_training_inputs.py :
 Dataset attendu : 1109 nœuds, ~4436 arêtes, 1.15M observations
 (~1145 timesteps de 5 min ≈ 4 jours d'historique trafic).
 
-USAGE (depuis M:\Test) :
-    .\.venv\Scripts\python.exe .\train_stgcn_vps.py
+USAGE (depuis M:\\Test) :
+    .\\.venv\\Scripts\\python.exe .\train_stgcn_vps.py
 
 Prérequis :
   - venv Python 3.12 (torch CUDA, torch-geometric, etc.) déjà créé
-  - M:\Test\model.py et M:\Test\dataset.py en place (imports locaux)
+  - M:\\Test\\model.py et M:\\Test\\dataset.py en place (imports locaux)
   - Tables gold.* peuplées sur le VPS (script build_gold_training_inputs.py
     déjà exécuté au moins une fois)
 """
 
 from __future__ import annotations
 
-import os
-import logging
 import datetime
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from sqlalchemy import create_engine
+import logging
+import os
+
+import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from dataset import build_sliding_dataset, load_graph_topology, load_traffic_series
 
 # Import local modules
 from model import SpatioTemporalGCN
-from dataset import load_graph_topology, load_traffic_series, build_sliding_dataset
+from sqlalchemy import create_engine
 
 # Logger
 logging.basicConfig(

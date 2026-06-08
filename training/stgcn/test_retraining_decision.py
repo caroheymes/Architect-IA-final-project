@@ -159,7 +159,7 @@ def main():
         # Affichage des métriques lues
         print("\n📊 ÉTAT DES MÉTRIQUES DE MONITORING :")
         if mae is not None:
-            print(f"  • MAE moyenne du matin : {mae:.4f} km/h (Seuil max : {args.mae-threshold} km/h)")
+            print(f"  • MAE moyenne du matin : {mae:.4f} km/h (Seuil max : {args.mae_threshold} km/h)")
             if mae > args.mae_threshold:
                 trigger_needed = True
                 reasons.append(f"Précision dégradée (MAE de {mae:.2f} > {args.mae_threshold:.2f} km/h)")
@@ -167,10 +167,10 @@ def main():
             print("  • MAE moyenne : Introuvable dans le JSON")
             
         if p_value is not None:
-            print(f"  • p-value Dérive de données : {p_value:.6f} (Seuil critique : < {args.p-value-threshold})")
+            print(f"  • p-value Dérive de données : {p_value:.6f} (Seuil critique : < {args.p_value_threshold})")
             if p_value < args.p_value_threshold:
                 trigger_needed = True
-                reasons.append(f"Dérive de données statistiquement significative (p-value {p_value:.6f} < {args.p-value-threshold})")
+                reasons.append(f"Dérive de données statistiquement significative (p-value {p_value:.6f} < {args.p_value_threshold})")
         else:
             print("  • p-value Dérive : Introuvable dans le JSON")
     else:
@@ -240,7 +240,7 @@ def main():
     if args.dry_run:
         print("💡 [MODE DRY-RUN ACTIF] L'entraînement n'a pas été lancé.")
         print("Pour exécuter réellement ce test sécurisé à 1 époque, lancez la commande suivante :")
-        print(f"👉 python training/stgcn/test_retraining_decision.py --force --epochs 1 --no-dry-run")
+        print("👉 python training/stgcn/test_retraining_decision.py --force --epochs 1 --no-dry-run")
         print("\nCommande bash équivalente simulée :")
         print(f"👉 {representative_cmd}")
     else:

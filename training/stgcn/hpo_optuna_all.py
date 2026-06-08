@@ -24,13 +24,12 @@ import mlflow
 import numpy as np
 import optuna
 import pandas as pd
-from sqlalchemy import create_engine
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from dataset import build_sliding_dataset, load_graph_topology, load_traffic_series
 from model import SpatioTemporalGCN
+from sqlalchemy import create_engine
 
 # Logger
 logging.basicConfig(
