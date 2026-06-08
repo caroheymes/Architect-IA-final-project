@@ -20,13 +20,13 @@ from shapely.geometry import LineString
 # Ensure our project path is in sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from utils.migrate_historical_to_silver import migrate_historical
+from utils.old_sans_interet.migrate_historical_to_silver import migrate_historical
 
 
 class TestMigrateHistorical(unittest.TestCase):
-    @patch("utils.migrate_historical_to_silver.create_engine")
-    @patch("utils.migrate_historical_to_silver.glob.glob")
-    @patch("utils.migrate_historical_to_silver.gpd.read_file")
+    @patch("utils.old_sans_interet.migrate_historical_to_silver.create_engine")
+    @patch("utils.old_sans_interet.migrate_historical_to_silver.glob.glob")
+    @patch("utils.old_sans_interet.migrate_historical_to_silver.gpd.read_file")
     def test_migrate_historical_success(self, mock_read_file, mock_glob, mock_create_engine):
         """Cas nominal : 1 GeoJSON transformé, DB mockée, ingestion Silver.
 
@@ -80,7 +80,7 @@ class TestMigrateHistorical(unittest.TestCase):
             return None
 
         # Run historical migration
-        with patch("utils.migrate_historical_to_silver.pd.DataFrame.to_sql", new=custom_to_sql):
+        with patch("utils.old_sans_interet.migrate_historical_to_silver.pd.DataFrame.to_sql", new=custom_to_sql):
             migrate_historical()
 
         # Assertions
@@ -124,8 +124,8 @@ class TestMigrateHistorical(unittest.TestCase):
         expected_dt = pytz.timezone("Europe/Paris").localize(datetime(2026, 5, 29, 21, 0))
         self.assertEqual(df_result["transformed_at"].iloc[0], expected_dt)
 
-    @patch("utils.migrate_historical_to_silver.create_engine")
-    @patch("utils.migrate_historical_to_silver.glob.glob")
+    @patch("utils.old_sans_interet.migrate_historical_to_silver.create_engine")
+    @patch("utils.old_sans_interet.migrate_historical_to_silver.glob.glob")
     def test_migrate_historical_empty_folder(self, mock_glob, mock_create_engine):
         """Cas dégradé : aucun fichier `*_transformed.json` dans le dossier.
 
