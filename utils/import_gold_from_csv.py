@@ -41,8 +41,8 @@ import io
 import logging
 import os
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, List, Tuple
 
 import pandas as pd
 import psycopg2
@@ -107,7 +107,7 @@ def connect():
 def _copy_from_dataframe(
     conn,
     table: str,
-    columns: List[str],
+    columns: list[str],
     df: pd.DataFrame,
     batch_size: int = BATCH_SIZE,
 ) -> int:
@@ -132,8 +132,8 @@ def _copy_from_dataframe(
 def _execute_values(
     conn,
     table: str,
-    columns: List[str],
-    rows: Iterator[Tuple],
+    columns: list[str],
+    rows: Iterator[tuple],
     batch_size: int = BATCH_SIZE,
 ) -> int:
     """Insertion par lots via execute_values (gere les colonnes NOT NULL synthetiques)."""
@@ -141,7 +141,7 @@ def _execute_values(
     placeholders = ",".join(["%s"] * len(columns))
     template = f"({placeholders})"
     total = 0
-    batch: List[Tuple] = []
+    batch: list[tuple] = []
     with conn.cursor() as cur:
         for row in rows:
             batch.append(row)
@@ -174,7 +174,7 @@ def _execute_values(
 # ---------------------------------------------------------------------------
 # Import dim_spatial_grid_mapping  (colonnes NOT NULL synthetiques)
 # ---------------------------------------------------------------------------
-def _grid_for_node(node_idx: int, width: int = 40) -> Tuple[int, int, str]:
+def _grid_for_node(node_idx: int, width: int = 40) -> tuple[int, int, str]:
     """Genere matrix_i/matrix_j/h3_id deterministes a partir de node_idx.
 
     Les coordonnees reelles (lat/lon) ne sont pas dans le CSV : laissees NULL.
@@ -257,7 +257,7 @@ def import_edges(conn, csv_path: Path, truncate: bool, dry_run: bool) -> int:
 # ---------------------------------------------------------------------------
 # Import fact_traffic_series
 # ---------------------------------------------------------------------------
-def import_traffic_series(conn, csv_path: Path, truncate: bool, dry_run: bool) -> Tuple[int, pd.DataFrame]:
+def import_traffic_series(conn, csv_path: Path, truncate: bool, dry_run: bool) -> tuple[int, pd.DataFrame]:
     logger.info("Lecture %s ...", csv_path.name)
     df = pd.read_csv(csv_path, dtype={"node_idx": int, "properties_vitesse": float})
     # timestamp peut etre ISO avec timezone -> on laisse pandas parser

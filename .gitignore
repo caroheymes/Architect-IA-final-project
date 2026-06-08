@@ -27,11 +27,9 @@ logs/
 *.pth
 
 # Personal folder & scratchpads
-./perso
-/perso/
-./trash/
-./policy_IAM/
-/policy_IAM/
+perso/
+trash/
+policy_IAM/
 00_connexion_postgres_boucles.ipynb
 load_data_transform_generate_image.py
 *.png
