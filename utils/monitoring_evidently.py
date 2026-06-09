@@ -11,15 +11,17 @@ La jointure et l'arrondi des timestamps à la minute sont réalisés côté Pand
 
 Formulation impersonnelle pour la conformité de la documentation de projet.
 """
-
+from datetime import datetime
 import json
 import logging
 import os
-import sys
-from datetime import datetime
-
 import pandas as pd
 from sqlalchemy import create_engine, text
+import sys
+
+
+
+
 
 # Configuration du Logger
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -206,16 +208,15 @@ def generate_report():
     # Post-traitement pour formater les titres selon les souhaits de l'utilisateur
     try:
         if os.path.exists(html_out_path):
-            logger.info("🔧 Application du post-traitement sur les titres du rapport...")
+            logger.info("Application du post-traitement sur les titres du rapport...")
             with open(html_out_path, "r", encoding="utf-8") as f:
                 html_content = f.read()
 
             # 1. Remplacements exacts de textes spécifiques
             replacements = {
-                "Regression Model Performance. Target: 'target’": "Regression model performance. Target : 'target’",
                 "Regression Model Performance. Target: 'target'": "Regression model performance. Target : 'target'",
                 "Regression Model Performance. Target: 'target\\u2019": "Regression model performance. Target : 'target\\u2019",
-                "Target: 'target’": "Target : 'target’",
+                "Target: 'target'": "Target : 'target'",
                 "Target: 'target'": "Target : 'target'",
                 "Target: 'target\\u2019": "Target : 'target\\u2019",
                 "Predicted vs Actual in Time": "Predicted vs actual in time",

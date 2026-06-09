@@ -29,6 +29,9 @@ MLFLOW_URL = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 # Cache data loading at module-level to avoid database overhead on each Optuna trial
 topology_data = None
 traffic_data = None
+pyg_data_list = None
+scaler_data = None
+split_idx_data = None
 
 
 def get_db_url():
@@ -79,14 +82,18 @@ def objective(trial):
         optuna.exceptions.TrialPruned: Si le MedianPruner décide d'arrêter
         le trial avant la fin.
     """
-    global topology_data, traffic_data
+    global topology_data, traffic_data, pyg_data_list, scaler_data, split_idx_data
 
     # 1. Sample Hyperparameters via Bayesian Search (TPE)
     lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
     hidden_channels = trial.suggest_categorical("hidden_channels", [64, 128, 256])
     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-4, log=True)
-    seq_len = trial.suggest_int("seq_len", 6, 24, step=6)  # 30 min, 1h, 1h30, or 2h of history
-    batch_size = trial.suggest_categorical("batch_size", [8, 16])  # Safe for VRAM limits
+    
+    # Aligné sur l'inférence : seq_len = 120 (10 heures d'historique)
+    seq_len = 120
+    
+    # Taille de lot adaptée pour éviter les débordements de mémoire (OOM VRAM) avec seq_len=120
+    batch_size = trial.suggest_categorical("batch_size", [1, 2])
 
     # Congestion penalization weights
     weight_jam = trial.suggest_float("weight_jam", 5.0, 20.0)
@@ -96,23 +103,37 @@ def objective(trial):
     num_nodes, edge_index = topology_data
     vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = traffic_data
 
-    # 3. Build sliding window loaders for this trial's seq_len & batch_size
-    train_loader, test_loader, scaler = build_sliding_dataset(
-        vitesse_matrix_raw,
-        hour_sin,
-        hour_cos,
-        day_sin,
-        day_cos,
-        seq_len=seq_len,
-        edge_index_tensor=edge_index,
-        num_nodes=num_nodes,
-        test_split=0.2,
-        batch_size=batch_size,
-    )
+    # 3. Build sliding window loaders (use cached list of Data samples if available)
+    if pyg_data_list is None:
+        logger.info("⏱️ Constructing sliding window dataset for the first trial (will be cached)...")
+        train_loader, test_loader, scaler = build_sliding_dataset(
+            vitesse_matrix_raw,
+            hour_sin,
+            hour_cos,
+            day_sin,
+            day_cos,
+            seq_len=seq_len,
+            edge_index_tensor=edge_index,
+            num_nodes=num_nodes,
+            test_split=0.2,
+            batch_size=1,  # dummy batch_size
+            horizons=[6, 12, 36],  # 30 min, 1h, 3h
+        )
+        pyg_data_list = train_loader.dataset + test_loader.dataset
+        split_idx_data = len(train_loader.dataset)
+        scaler_data = scaler
+        logger.info(f"✅ Sliding window dataset constructed with {len(pyg_data_list)} samples and cached.")
+    else:
+        scaler = scaler_data
+
+    # Create PyG DataLoaders on the fly with the trial's batch_size
+    from torch_geometric.loader import DataLoader as PyGDataLoader
+    train_loader = PyGDataLoader(pyg_data_list[:split_idx_data], batch_size=batch_size, shuffle=True)
+    test_loader = PyGDataLoader(pyg_data_list[split_idx_data:], batch_size=batch_size, shuffle=False)
 
     # 4. Device and Model setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_channels, out_channels=1).to(device)
+    model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_channels, out_channels=3).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     mean_tensor = torch.tensor(scaler.mean_, dtype=torch.float, device=device).view(-1, 1)
@@ -158,13 +179,16 @@ def objective(trial):
 
                 mae_metric += F.l1_loss(preds_kmh, targets_kmh, reduction="sum").item()
 
-        test_mae_kmh = mae_metric / (len(test_loader.dataset) * num_nodes)
+        test_mae_kmh = mae_metric / (len(test_loader.dataset) * num_nodes * 3)  # Divisé par 3 horizons
+
+        logger.info(f"  [Trial {trial.number}] Epoch {epoch}/{max_epochs} - Test MAE: {test_mae_kmh:.4f} km/h")
 
         # Report trial intermediate metrics for Pruning decisions
         trial.report(test_mae_kmh, epoch)
 
         # Prune unpromising trials (e.g. median performance threshold)
         if trial.should_prune():
+            logger.info(f"  ⚠️ [Trial {trial.number}] Pruned at epoch {epoch}")
             raise optuna.exceptions.TrialPruned()
 
     return test_mae_kmh
@@ -194,14 +218,35 @@ def run_hpo():
     global topology_data, traffic_data
     logger.info("🚀 Initializing STGCN Hyperparameter Tuning...")
 
-    # Initialize SQL Alchemy engine
-    engine = get_engine()
+    USE_LOCAL_CSV = os.getenv("USE_LOCAL_CSV", "false").lower() == "true"
+    DATA_FOLDER = os.getenv("DATA_FOLDER", "/home/ray/project/data/in")
 
-    # 1. Warm-up topology and traffic data cache
-    logger.info("💾 Loading topology and timeseries database cache...")
-    topology_data = load_graph_topology(engine)
-    traffic_data = load_traffic_series(engine)
-    logger.info("✅ Database cache warmed-up.")
+    if USE_LOCAL_CSV:
+        logger.info(f"📁 [CACHE] Chargement local depuis les fichiers CSV dans {DATA_FOLDER}...")
+        from dataset import load_graph_topology_from_csv, load_traffic_series_from_csv
+        topology_data = load_graph_topology_from_csv(DATA_FOLDER)
+        traffic_data = load_traffic_series_from_csv(DATA_FOLDER)
+        logger.info("✅ Cache local de données CSV initialisé.")
+    else:
+        logger.info("📡 [CACHE] Connexion PostgreSQL pour chargement des données...")
+        engine = get_engine()
+        topology_data = load_graph_topology(engine)
+        num_nodes, edge_index = topology_data
+        
+        vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = load_traffic_series(engine)
+        
+        # Aligner la matrice de vitesse pour qu'elle ait exactement num_nodes colonnes (prévention shape mismatch)
+        if vitesse_matrix_raw.shape[1] != num_nodes:
+            logger.warning(f"⚠️ Alignement de la matrice : {vitesse_matrix_raw.shape[1]} -> {num_nodes} colonnes.")
+            default_speed = float(os.getenv("LYON_DEFAULT_SPEED", 30.0))
+            padded_vitesse = np.full((vitesse_matrix_raw.shape[0], num_nodes), default_speed)
+            cols_to_copy = min(vitesse_matrix_raw.shape[1], num_nodes)
+            padded_vitesse[:, :cols_to_copy] = vitesse_matrix_raw[:, :cols_to_copy]
+            vitesse_matrix_raw = padded_vitesse
+            
+        traffic_data = (vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos)
+        engine.dispose()
+        logger.info("✅ Cache de données PostgreSQL initialisé et aligné.")
 
     # 2. Setup MLflow Tracking
     try:
@@ -215,7 +260,7 @@ def run_hpo():
 
     # 4. Create or Load Study
     study = optuna.create_study(
-        study_name="lyonflow_stgcn_tuning_v1",
+        study_name="lyonflow_stgcn_tuning_seq120",
         storage=postgres_storage,
         load_if_exists=True,
         direction="minimize",
@@ -224,9 +269,10 @@ def run_hpo():
 
     # 5. Run Optimize
     run_name = f"Optuna_HPO_Study_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    n_trials = int(os.getenv("N_TRIALS", "20"))
     with mlflow.start_run(run_name=run_name):
-        logger.info("Bayesian hyperparameter optimization in progress...")
-        study.optimize(objective, n_trials=20)
+        logger.info(f"Bayesian hyperparameter optimization in progress ({n_trials} trials)...")
+        study.optimize(objective, n_trials=n_trials)
 
         # Log best results
         logger.info(f"🏆 Best trial finished with MAE: {study.best_value:.4f} km/h")
