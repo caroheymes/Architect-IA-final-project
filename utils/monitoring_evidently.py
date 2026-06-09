@@ -10,6 +10,7 @@ La jointure et l'arrondi des timestamps à la minute sont réalisés côté Pand
 évitant d'appliquer des fonctions de date non indexées sur PostgreSQL.
 
 """
+
 import json
 import logging
 import os
@@ -18,7 +19,6 @@ from datetime import datetime
 
 import pandas as pd
 from sqlalchemy import create_engine, text
-
 
 # Configuration du Logger
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -224,7 +224,7 @@ def generate_report():
                 "Absolute Max Error (current)": "Absolute max error (current)",
                 "Absolute Max Error (reference)": "Absolute max error (reference)",
                 "R2 Score (current)": "R2 score (current)",
-                "R2 Score (reference)": "R2 score (reference)"
+                "R2 Score (reference)": "R2 score (reference)",
             }
 
             for old, new in replacements.items():
@@ -234,12 +234,12 @@ def generate_report():
             import re
 
             def format_title(match):
-                prefix = match.group(1)      # "Current" ou "Reference"
+                prefix = match.group(1)  # "Current" ou "Reference"
                 title_text = match.group(2)  # Le texte du titre, ex: "Model Quality (+/- std)"
                 return f"{prefix} : {title_text.lower()}"
 
             # Regex capturant "Current:" ou "Reference:" suivi de lettres, espaces, parenthèses ou symboles de calcul
-            pattern = r'\b(Current|Reference):\s*([a-zA-Z0-9\s()/\-+]+)'
+            pattern = r"\b(Current|Reference):\s*([a-zA-Z0-9\s()/\-+]+)"
             modified_content = re.sub(pattern, format_title, html_content)
 
             with open(html_out_path, "w", encoding="utf-8") as f:
