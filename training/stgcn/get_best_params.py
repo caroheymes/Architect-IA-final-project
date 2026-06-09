@@ -35,7 +35,11 @@ def get_params_from_optuna():
 
     db_url = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     try:
-        study = optuna.load_study(study_name="lyonflow_stgcn_tuning_v1", storage=db_url)
+        # Prioritize the 10-hour sequence study, fallback to v1 if not found
+        try:
+            study = optuna.load_study(study_name="lyonflow_stgcn_tuning_seq120", storage=db_url)
+        except Exception:
+            study = optuna.load_study(study_name="lyonflow_stgcn_tuning_v1", storage=db_url)
         return study.best_params
     except Exception as e:
         print(f"# Optuna database reading skipped or failed: {e}")
