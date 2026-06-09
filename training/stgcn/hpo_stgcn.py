@@ -89,10 +89,10 @@ def objective(trial):
     lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
     hidden_channels = trial.suggest_categorical("hidden_channels", [64, 128, 256])
     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-4, log=True)
-    
+
     # Aligné sur l'inférence : seq_len = 120 (10 heures d'historique)
     seq_len = 120
-    
+
     # Taille de lot adaptée pour éviter les débordements de mémoire (OOM VRAM) avec seq_len=120
     batch_size = trial.suggest_categorical("batch_size", [1, 2])
 
@@ -129,6 +129,7 @@ def objective(trial):
 
     # Create PyG DataLoaders on the fly with the trial's batch_size
     from torch_geometric.loader import DataLoader as PyGDataLoader
+
     train_loader = PyGDataLoader(pyg_data_list[:split_idx_data], batch_size=batch_size, shuffle=True)
     test_loader = PyGDataLoader(pyg_data_list[split_idx_data:], batch_size=batch_size, shuffle=False)
 
@@ -225,6 +226,7 @@ def run_hpo():
     if USE_LOCAL_CSV:
         logger.info(f"📁 [CACHE] Chargement local depuis les fichiers CSV dans {DATA_FOLDER}...")
         from dataset import load_graph_topology_from_csv, load_traffic_series_from_csv
+
         topology_data = load_graph_topology_from_csv(DATA_FOLDER)
         traffic_data = load_traffic_series_from_csv(DATA_FOLDER)
         logger.info("✅ Cache local de données CSV initialisé.")
@@ -233,9 +235,9 @@ def run_hpo():
         engine = get_engine()
         topology_data = load_graph_topology(engine)
         num_nodes, edge_index = topology_data
-        
+
         vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = load_traffic_series(engine)
-        
+
         # Aligner la matrice de vitesse pour qu'elle ait exactement num_nodes colonnes (prévention shape mismatch)
         if vitesse_matrix_raw.shape[1] != num_nodes:
             logger.warning(f"⚠️ Alignement de la matrice : {vitesse_matrix_raw.shape[1]} -> {num_nodes} colonnes.")
@@ -244,7 +246,7 @@ def run_hpo():
             cols_to_copy = min(vitesse_matrix_raw.shape[1], num_nodes)
             padded_vitesse[:, :cols_to_copy] = vitesse_matrix_raw[:, :cols_to_copy]
             vitesse_matrix_raw = padded_vitesse
-            
+
         traffic_data = (vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos)
         engine.dispose()
         logger.info("✅ Cache de données PostgreSQL initialisé et aligné.")

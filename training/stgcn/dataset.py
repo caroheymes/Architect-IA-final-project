@@ -130,8 +130,11 @@ def build_sliding_dataset(
         le dataset et doit être réutilisé à l'inférence pour déstandardiser.
     """
     import os
+
     if vitesse_matrix_raw.shape[1] != num_nodes:
-        print(f"[LyonFlow-STGCN] ⚠️ Warning: aligning vitesse_matrix_raw shape from {vitesse_matrix_raw.shape[1]} to {num_nodes} columns.")
+        print(
+            f"[LyonFlow-STGCN] ⚠️ Warning: aligning vitesse_matrix_raw shape from {vitesse_matrix_raw.shape[1]} to {num_nodes} columns."
+        )
         default_speed = float(os.getenv("LYON_DEFAULT_SPEED", 30.0))
         padded_vitesse = np.full((vitesse_matrix_raw.shape[0], num_nodes), default_speed)
         cols_to_copy = min(vitesse_matrix_raw.shape[1], num_nodes)
