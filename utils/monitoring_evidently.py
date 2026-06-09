@@ -10,11 +10,11 @@ La jointure et l'arrondi des timestamps à la minute sont réalisés côté Pand
 évitant d'appliquer des fonctions de date non indexées sur PostgreSQL.
 
 """
-from datetime import datetime
 import json
 import logging
 import os
 import sys
+from datetime import datetime
 
 import pandas as pd
 from sqlalchemy import create_engine, text
