@@ -773,7 +773,7 @@ with tab_obs:
 
         st.success("🟢 Rapport d'observabilité de la pointe du matin (07h00 - 10h00) chargé avec succès.")
 
-        show_report = st.checkbox("Afficher le rapport d'observabilité interactif complet (Evidently AI)", value=False)
+        show_report = st.checkbox("Afficher le rapport d'observabilité interactif complet (Evidently AI)", value=True)
         if show_report:
             html_content = load_evidently_report(report_html_path)
             components.html(html_content, height=1200, scrolling=True)

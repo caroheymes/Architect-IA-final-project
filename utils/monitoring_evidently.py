@@ -203,6 +203,54 @@ def generate_report():
     result.save_html(html_out_path)
     logger.info(f"💾 Rapport interactif HTML exporté avec succès sous : {html_out_path}")
 
+    # Post-traitement pour formater les titres selon les souhaits de l'utilisateur
+    try:
+        if os.path.exists(html_out_path):
+            logger.info("🔧 Application du post-traitement sur les titres du rapport...")
+            with open(html_out_path, "r", encoding="utf-8") as f:
+                html_content = f.read()
+
+            # 1. Remplacements exacts de textes spécifiques
+            replacements = {
+                "Regression Model Performance. Target: 'target’": "Regression model performance. Target : 'target’",
+                "Regression Model Performance. Target: 'target'": "Regression model performance. Target : 'target'",
+                "Regression Model Performance. Target: 'target\\u2019": "Regression model performance. Target : 'target\\u2019",
+                "Target: 'target’": "Target : 'target’",
+                "Target: 'target'": "Target : 'target'",
+                "Target: 'target\\u2019": "Target : 'target\\u2019",
+                "Predicted vs Actual in Time": "Predicted vs actual in time",
+                "Error (Predicted - Actual)": "Error (predicted - actual)",
+                "Error Distribution": "Error distribution",
+                "Mean Absolute Percentage Error: Current": "Mean absolute percentage error : current",
+                "Mean Absolute Percentage Error: Reference": "Mean absolute percentage error : reference",
+                "Absolute Percentage Error": "Absolute percentage error",
+                "Absolute Max Error (current)": "Absolute max error (current)",
+                "Absolute Max Error (reference)": "Absolute max error (reference)",
+                "R2 Score (current)": "R2 score (current)",
+                "R2 Score (reference)": "R2 score (reference)"
+            }
+
+            for old, new in replacements.items():
+                html_content = html_content.replace(old, new)
+
+            # 2. Remplacements par expression régulière pour les titres "Current: ..." et "Reference: ..." restants
+            import re
+
+            def format_title(match):
+                prefix = match.group(1)      # "Current" ou "Reference"
+                title_text = match.group(2)  # Le texte du titre, ex: "Model Quality (+/- std)"
+                return f"{prefix} : {title_text.lower()}"
+
+            # Regex capturant "Current:" ou "Reference:" suivi de lettres, espaces, parenthèses ou symboles de calcul
+            pattern = r'\b(Current|Reference):\s*([a-zA-Z0-9\s()/\-+]+)'
+            modified_content = re.sub(pattern, format_title, html_content)
+
+            with open(html_out_path, "w", encoding="utf-8") as f:
+                f.write(modified_content)
+            logger.info("🟢 Titres reformatés avec succès (ex: 'Current : model quality (+/- std)').")
+    except Exception as e:
+        logger.warning(f"⚠️ Échec du post-traitement des titres : {e}")
+
     # Export des métriques brutes au format JSON pour MLflow ou Streamlit
     json_out_path = os.path.join(DATA_FOLDER_OUT, "monitoring_metrics_morning.json")
     try:
