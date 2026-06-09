@@ -9,18 +9,15 @@ Il compare les performances d'inférence de la veille (J-1, Reference) avec cell
 La jointure et l'arrondi des timestamps à la minute sont réalisés côté Pandas pour des performances optimales,
 évitant d'appliquer des fonctions de date non indexées sur PostgreSQL.
 
-Formulation impersonnelle pour la conformité de la documentation de projet.
 """
 from datetime import datetime
 import json
 import logging
 import os
-import pandas as pd
-from sqlalchemy import create_engine, text
 import sys
 
-
-
+import pandas as pd
+from sqlalchemy import create_engine, text
 
 
 # Configuration du Logger
@@ -209,14 +206,13 @@ def generate_report():
     try:
         if os.path.exists(html_out_path):
             logger.info("Application du post-traitement sur les titres du rapport...")
-            with open(html_out_path, "r", encoding="utf-8") as f:
+            with open(html_out_path, encoding="utf-8") as f:
                 html_content = f.read()
 
             # 1. Remplacements exacts de textes spécifiques
             replacements = {
                 "Regression Model Performance. Target: 'target'": "Regression model performance. Target : 'target'",
                 "Regression Model Performance. Target: 'target\\u2019": "Regression model performance. Target : 'target\\u2019",
-                "Target: 'target'": "Target : 'target'",
                 "Target: 'target'": "Target : 'target'",
                 "Target: 'target\\u2019": "Target : 'target\\u2019",
                 "Predicted vs Actual in Time": "Predicted vs actual in time",
