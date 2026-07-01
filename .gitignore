@@ -36,6 +36,7 @@ load_data_transform_generate_image.py
 *.png
 *.html
 
+
 # IDE configs
 .vscode/
 .idea/
@@ -57,3 +58,4 @@ CLAUDE.md
 .cody/
 .copilot/
 .github/copilot-instructions.md
+.agents/
