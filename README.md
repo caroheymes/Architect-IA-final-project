@@ -32,12 +32,12 @@ graph TD
    * Interpolation des segments de route tous les **7 mètres** pour générer des coordonnées précises.
    * Indexation spatiale à l'aide de cellules **H3 (résolution 13)**.
    * Normalisation et catégorisation des vitesses en temps réel.
-3. **Layer Gold (`gold`) et fichiers plats (Parquet/CSV)** :
+3. **Layer Gold (`gold`) et fichiers plats (CSV)** :
    * `dim_spatial_grid_mapping` : alignement des capteurs géographiques sur une grille relative $(i, j)$ constante (chargé via `node_mapping.csv`).
    * `dim_gnn_adjacency` : construction dynamique de la matrice d'adjacence du graphe routier (chargé via `edges.csv`).
    * `fact_traffic_series` : table temporelle de faits de vitesse interpolée et imputée (chargé via `traffic_series.csv`).
    * **Vue matérialisée (`mv_fact_traffic_pivot`)** : pivot spatio-temporel rafraîchi après chaque import, servant de source d'inférence en temps réel pour Streamlit.
-   * **Sauvegardes Parquet (`data/processed/`)** : export compressé haute performance des séries de trafic pour un entraînement ML hors-ligne optimisé (Ray charge directement ces fichiers plats, libérant ainsi les verrous et la bande passante de la base PostgreSQL).
+   * **Sauvegardes CSV (`data/in/`)** : export des séries de trafic pour un entraînement ML hors-ligne optimisé (Ray charge directement ces fichiers plats, libérant ainsi les verrous et la bande passante de la base PostgreSQL).
 
 ---
 
@@ -47,13 +47,13 @@ Pour résoudre le défi de la prédiction du trafic, une simple approche par sé
 
 ### 1. Architecture du modèle : Spatio-Temporal GRU-GNN (ST-GRU-GNN)
 > [!IMPORTANT]
-> **Clarification architecturale (honnêteté scientifique) :**
+> **Clarification architecturale :**
 > Notre implémentation dans `model.py` diffère de la structure STGCN originale proposée par Yu et al. (2018). Alors que l'article original préconise des convolutions temporelles causales 1D (Gated CNNs avec GLU), nous implémentons un modèle hybride récurrent-spatial : **GRU + GCN avec Skip Connections** (que nous désignons sous le nom de **ST-GRU-GNN**). Bien que le nom de classe `SpatioTemporalGCN` et les scripts conservent par simplicité le préfixe `stgcn`, l'architecture récurrente est ici privilégiée pour sa robustesse face au bruit et à l'échantillonnage irrégulier du flux réel de la Métropole de Lyon.
 
-Le trafic dépend à la fois de son propre historique (temporel) et du trafic des rues adjacentes qui s'y déverse (spatial) :
-* **Composante temporelle (Temporal GRU Encoder) :** utilise un réseau récurrent **GRU (Gated Recurrent Unit)** pour modéliser les dépendances temporelles séquentielles de vitesse sur chaque nœud du graphe. Cela capte efficacement les dynamiques temporelles à court terme sans souffrir des limitations des convolutions causales sur des séries réelles bruitées.
-* **Composante spatiale (Spatial GNN Decoder) :** utilise deux couches de convolutions spectrales de graphes (`GCNConv` de PyTorch Geometric) sur la matrice d'adjacence du réseau routier pour propager l'influence physique des flux entre segments adjacents.
-* **Sauts de connexion (Residual Skip Connections) :** des connexions résiduelles relient les étapes de convolution spatiale pour stabiliser le calcul des gradients lors de la backpropagation.
+Le trafic dépend à la fois de son historique (temporel) et du trafic des rues adjacentes (spatial) :
+* **Composante temporelle :** un réseau récurrent **GRU** modélise l'évolution de la vitesse dans le temps sur chaque segment de route.
+* **Composante spatiale :** deux couches de convolutions de graphes (**GCN**) propagent l'état du trafic entre segments voisins sur le réseau routier.
+* **Connexions résiduelles :** des sauts de connexion stabilisent l'apprentissage.
 * **Framework :** écrit sous **PyTorch Geometric (PyG)**.
 
 ### 2. Moteur : Ray cluster (apprentissage distribué)
@@ -65,7 +65,7 @@ L'entraînement d'un modèle de Deep Learning sur des graphes (GNN) est gourmand
 ### 3. Optimiseur : Optuna (réglage bayésien des hyperparamètres)
 Le comportement du STGCN est très sensible à ses hyperparamètres (nombre de canaux cachés, taille de la fenêtre temporelle d'entrée, taux d'apprentissage, et pondérations spécifiques pour pénaliser les ralentissements et embouteillages).
 * **Optimisation bayésienne (TPE sampler) :** contrairement à une recherche aléatoire (Random Search) ou sur grille (Grid Search), Optuna construit un modèle probabiliste des performances pour échantillonner intelligemment les meilleurs jeux de paramètres futurs.
-* **Élimination précoce (pruning) :** grâce au pruner d'Optuna (MedianPruner), les essais qui affichent des performances initiales médiocres après quelques époques sont arrêtés immédiatement. Cela a permis d'accélérer notre recherche d'un **facteur de 5,3x** (20 essais terminés avec succès en seulement 8 minutes sur machine locale !).
+* **Élimination précoce (pruning) :** grâce au pruner d'Optuna (MedianPruner), les essais qui affichent des performances initiales médiocres après quelques époques sont arrêtés immédiatement. Cela a permis d'accélérer notre recherche d'un **facteur de 5,3x** (20 essais terminés avec succès en seulement 35 minutes sur machine locale !).
 
 ---
 
