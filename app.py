@@ -341,7 +341,7 @@ st.markdown(
 DATABASE_URL = None
 
 st.sidebar.header("Configuration & statut")
-st.sidebar.success("🟢 Mode CSV Local Actif")
+st.sidebar.success("🟢 inférence sur csv. Stockage Postgresql (architecture médaillon).")
 st.sidebar.caption("Les données sont chargées localement en moins de 0.05s.")
 
 st.sidebar.markdown("---")
@@ -349,7 +349,7 @@ st.sidebar.info("""
     **LyonFlow Stack**:
     - **Orchestration**: Apache Airflow
     - **Calcul Distribué**: Ray Core
-    - **Stockage**: Fichiers CSV (Optimisés)
+    - **Stockage**: Postgresql
 """)
 
 
@@ -537,8 +537,49 @@ def plot_training_curves(df_metrics):
     fig.update_xaxes(title_text="Époque", gridcolor="#E5E7EB", row=1, col=2)
     fig.update_yaxes(title_text="Perte standardisée", gridcolor="#E5E7EB", row=1, col=1)
     fig.update_yaxes(title_text="MAE (km/h)", gridcolor="#E5E7EB", row=1, col=2)
-
     return fig
+
+
+def load_training_history_from_mlflow(run_id):
+    """Récupère l'historique des métriques depuis le serveur MLflow pour un run donné.
+
+    Args:
+        run_id (str): ID du run MLflow.
+
+    Returns:
+        pandas.DataFrame | None: DataFrame contenant Epoch, Train Loss (std) et Test MAE (km/h),
+        ou None si la récupération échoue.
+    """
+    import mlflow
+    from mlflow.tracking import MlflowClient
+
+    MLFLOW_URL = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+    try:
+        mlflow.set_tracking_uri(MLFLOW_URL)
+        client = MlflowClient()
+
+        # Récupérer l'historique de train_loss_std et test_mae_kmh
+        train_loss_history = client.get_metric_history(run_id, "train_loss_std")
+        test_mae_history = client.get_metric_history(run_id, "test_mae_kmh")
+
+        if not train_loss_history or not test_mae_history:
+            return None
+
+        epochs = [m.step for m in train_loss_history]
+        train_losses = [m.value for m in train_loss_history]
+        test_maes = [m.value for m in test_mae_history]
+
+        df = pd.DataFrame({
+            "Epoch": epochs,
+            "Train Loss (std)": train_losses,
+            "Test MAE (km/h)": test_maes
+        })
+        # Trier par époque pour être sûr de l'ordre
+        df = df.sort_values("Epoch").reset_index(drop=True)
+        return df
+    except Exception as e:
+        logger.warning(f"⚠️ Impossible de récupérer les métriques depuis MLflow ({e})")
+        return None
 
 
 # Load predictions data first (from cached local CSV, fast and non-blocking)
@@ -585,27 +626,35 @@ with tab_curves:
     Visualisez ci-dessous l'évolution de la **perte d'entraînement normalisée (MSE)** et de l'**erreur absolue moyenne (MAE)** de validation (exprimée en km/h) calculées à chaque époque.
     """)
 
-    ideal_plot_path = "trash/ideal.png"
-    fallback_plot_path = "trash/model_metrics.png"
+    # Essayer de charger dynamiquement les métriques réelles depuis MLflow
+    df_metrics_mlflow = load_training_history_from_mlflow(selected_run_id)
 
-    if os.path.exists(ideal_plot_path):
-        st.info("💡 Chargement du graphique de performance historique de référence (Cible finale de production).")
-        st.image(
-            ideal_plot_path,
-            caption="Courbe d'apprentissage de référence (Idéal de production)",
-            use_container_width=True,
-        )
-    elif os.path.exists(fallback_plot_path):
-        st.warning("⚠️ Chargement des métriques de référence initiales.")
-        st.image(
-            fallback_plot_path, caption="Courbe d'apprentissage initiale (STGCN de base)", use_container_width=True
-        )
+    if df_metrics_mlflow is not None and not df_metrics_mlflow.empty:
+        st.success(f"🟢 Courbes d'apprentissage réelles chargées dynamiquement depuis MLflow (ID du Run : `{selected_run_id[:8]}`).")
+        fig_curves = plot_training_curves(df_metrics_mlflow)
+        st.plotly_chart(fig_curves, use_container_width=True)
     else:
-        st.error("❌ Aucun historique de performance n'a pu être trouvé sur le disque local.")
+        ideal_plot_path = "trash/ideal.png"
+        fallback_plot_path = "trash/model_metrics.png"
+
+        if os.path.exists(ideal_plot_path):
+            st.info("💡 Chargement du graphique de performance historique de référence (Cible finale de production).")
+            st.image(
+                ideal_plot_path,
+                caption="Courbe d'apprentissage de référence (Idéal de production)",
+                use_container_width=True,
+            )
+        elif os.path.exists(fallback_plot_path):
+            st.warning("⚠️ Chargement des métriques de référence initiales.")
+            st.image(
+                fallback_plot_path, caption="Courbe d'apprentissage initiale (STGCN de base)", use_container_width=True
+            )
+        else:
+            st.error("❌ Aucun historique de performance n'a pu être trouvé sur le disque local ou sur MLflow.")
 
 with tab_err:
     log_time("Entering tab_err block")
-    st.subheader("🎯 Analyse d'erreur stratifiée (dernier modèle)")
+    st.subheader("Analyse d'erreur stratifiée (dernier modèle)")
     st.markdown("""
     Cette vue présente l'évaluation fine de la précision réelle du modèle découpée en 4 analyses clés pour garantir l'honnêteté et la transparence scientifique :
     1. **MAE par tranche de vitesse** : Évaluation selon l'état du trafic (embouteillages/ralentissements vs trafic fluide).
@@ -631,7 +680,7 @@ with tab_obs:
     st.subheader("📊 Observabilité du modèle & dérive temporelle (Evidently AI)")
     st.markdown("""
     Ce tableau de bord d'observabilité compare en continu la précision prédictive du modèle STGCN 
-    sur la tranche horaire critique de la pointe du matin (07h00 à 10h00) entre la veille (Référence, $J-1$) 
+    sur la tranche horaire de la journée (08h00 à 20h00) entre la veille (Référence, $J-1$) 
     et aujourd'hui (Audit, $J$).
     """)
 

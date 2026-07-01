@@ -49,17 +49,17 @@ def generate_report():
     db_url = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     engine = create_engine(db_url)
 
-    # 1. Récupération des jours distincts disponibles ayant des données matinales (7h-9h)
+    # 1. Récupération des jours distincts disponibles ayant des données diurnes (8h-20h)
     logger.info("📡 Analyse des jours disponibles dans la base de données...")
     query_preds_days = """
         SELECT DISTINCT target_timestamp::date AS day 
         FROM gold.fact_predictions_traffic 
-        WHERE EXTRACT(HOUR FROM target_timestamp) BETWEEN 7 AND 9;
+        WHERE EXTRACT(HOUR FROM target_timestamp) BETWEEN 8 AND 20;
     """
     query_facts_days = """
         SELECT DISTINCT timestamp::date AS day 
         FROM gold.fact_traffic_series 
-        WHERE EXTRACT(HOUR FROM timestamp) BETWEEN 7 AND 9;
+        WHERE EXTRACT(HOUR FROM timestamp) BETWEEN 8 AND 20;
     """
     try:
         df_preds_days = pd.read_sql(query_preds_days, con=engine)
@@ -74,30 +74,30 @@ def generate_report():
 
     if len(available_days) < 2:
         logger.warning(
-            "⚠️ Nombre de jours avec données du matin insuffisant (minimum 2 requis) pour effectuer une comparaison. Monitoring annulé."
+            "⚠️ Nombre de jours avec données diurnes insuffisant (minimum 2 requis) pour effectuer une comparaison. Monitoring annulé."
         )
         return
 
-    day_j = available_days[-1]  # Jour le plus récent avec données du matin (Current)
-    day_j_minus_1 = available_days[-2]  # Jour précédent avec données du matin (Reference)
+    day_j = available_days[-1]  # Jour le plus récent avec données diurnes (Current)
+    day_j_minus_1 = available_days[-2]  # Jour précédent avec données diurnes (Reference)
 
     logger.info(f"📊 Jour de Référence (Reference, J-1) : {day_j_minus_1}")
     logger.info(f"📊 Jour d'Audit (Current, J)          : {day_j}")
 
     # 2. Extraction des données brutes de prédiction et de trafic réel
-    # On filtre sur les jours J-1 et J pour minimiser le transfert de données
+    # On filtre sur les jours J-1 et J pour les heures de 8h à 20h
     query_preds = """
         SELECT prediction_timestamp, target_timestamp, horizon_minutes, node_idx, properties_twgid, predicted_speed
         FROM gold.fact_predictions_traffic
         WHERE target_timestamp::date IN (:day_ref, :day_curr)
-          AND EXTRACT(HOUR FROM target_timestamp) BETWEEN 7 AND 9;
+          AND EXTRACT(HOUR FROM target_timestamp) BETWEEN 8 AND 20;
     """
 
     query_facts = """
         SELECT timestamp, node_idx, properties_vitesse AS actual_speed
         FROM gold.fact_traffic_series
         WHERE timestamp::date IN (:day_ref, :day_curr)
-          AND EXTRACT(HOUR FROM timestamp) BETWEEN 7 AND 9;
+          AND EXTRACT(HOUR FROM timestamp) BETWEEN 8 AND 20;
     """
 
     logger.info("📡 Chargement des prédictions depuis PostgreSQL...")

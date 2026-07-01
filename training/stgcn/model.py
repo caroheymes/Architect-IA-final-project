@@ -16,7 +16,7 @@ class SpatioTemporalGCN(nn.Module):
     inherent in Lyon's real-world traffic data.
     """
 
-    def __init__(self, in_channels, hidden_channels, out_channels):
+    def __init__(self, in_channels, hidden_channels, out_channels, dropout=0.0):
         """Initialise les sous-modules du modèle ST-GRU-GNN.
 
         Args:
@@ -24,6 +24,7 @@ class SpatioTemporalGCN(nn.Module):
                 (= 5 dans `build_sliding_dataset` : speed + 4 cycliques).
             hidden_channels (int): Taille de l'état caché partagé entre GRU et GCN.
             out_channels (int): Nb d'horizons prédits (= `len(horizons)`).
+            dropout (float): Taux de dropout pour régulariser les couches spatiales.
         """
         super().__init__()
         # Encodeur temporel : GRU traitant la séquence par nœud.
@@ -37,6 +38,7 @@ class SpatioTemporalGCN(nn.Module):
         # Couche fully-connected de régression multi-horizon.
         self.fc = nn.Linear(hidden_channels, out_channels)
         self.relu = nn.LeakyReLU(0.2)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, edge_index):
         """Passe forward du modèle.
@@ -66,10 +68,12 @@ class SpatioTemporalGCN(nn.Module):
 
         # Spatial convolution 1 with Skip Connection
         h_space1 = self.spatial_gcn1(h_temp, edge_index)
-        h_space1 = self.relu(h_space1) + h_temp
+        h_space1 = self.relu(h_space1)
+        h_space1 = self.dropout(h_space1) + h_temp
 
         # Spatial convolution 2 with Skip Connection
         h_space2 = self.spatial_gcn2(h_space1, edge_index)
-        h_space2 = self.relu(h_space2) + h_space1
+        h_space2 = self.relu(h_space2)
+        h_space2 = self.dropout(h_space2) + h_space1
 
         return self.fc(h_space2)

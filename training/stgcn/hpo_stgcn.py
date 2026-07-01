@@ -86,19 +86,20 @@ def objective(trial):
     global topology_data, traffic_data, pyg_data_list, scaler_data, split_idx_data
 
     # 1. Sample Hyperparameters via Bayesian Search (TPE)
-    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
-    hidden_channels = trial.suggest_categorical("hidden_channels", [64, 128, 256])
+    lr = trial.suggest_float("lr", 0.001, 0.005)
+    hidden_channels = trial.suggest_categorical("hidden_channels", [32, 48, 64])
     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-4, log=True)
+    dropout = trial.suggest_float("dropout", 0.20, 0.35)
 
     # Aligné sur l'inférence : seq_len = 120 (10 heures d'historique)
     seq_len = 120
 
-    # Taille de lot adaptée pour éviter les débordements de mémoire (OOM VRAM) avec seq_len=120
-    batch_size = trial.suggest_categorical("batch_size", [1, 2])
+    # Fixé à 2 car optimal et stable sur GPU pour seq_len=120
+    batch_size = 2
 
-    # Congestion penalization weights
-    weight_jam = trial.suggest_float("weight_jam", 5.0, 20.0)
-    weight_slow = trial.suggest_float("weight_slow", 2.0, 8.0)
+    # Congestion penalization weights (zoomed range)
+    weight_jam = trial.suggest_float("weight_jam", 12.0, 18.0)
+    weight_slow = trial.suggest_float("weight_slow", 5.0, 8.0)
 
     # 2. Get Cached Data (Loaded once on main entrypoint)
     num_nodes, edge_index = topology_data
@@ -135,7 +136,7 @@ def objective(trial):
 
     # 4. Device and Model setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_channels, out_channels=3).to(device)
+    model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_channels, out_channels=3, dropout=dropout).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     mean_tensor = torch.tensor(scaler.mean_, dtype=torch.float, device=device).view(-1, 1)
@@ -263,7 +264,7 @@ def run_hpo():
 
     # 4. Create or Load Study
     study = optuna.create_study(
-        study_name="lyonflow_stgcn_tuning_seq120",
+        study_name="lyonflow_stgcn_tuning_zoomed",
         storage=postgres_storage,
         load_if_exists=True,
         direction="minimize",

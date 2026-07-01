@@ -124,13 +124,13 @@ services:
       - POSTGRES_HOST=postgres
       - POSTGRES_DB=${POSTGRES_DB:-lyonflow}
       - MLFLOW_TRACKING_URI=http://mlflow:5000
-    command: ray start --head --port=6379 --dashboard-host=0.0.0.0 --num-cpus=1 --block
+    command: ray start --head --port=6379 --dashboard-host=0.0.0.0 --num-cpus=0 --block
     restart: always
     deploy:
       resources:
         limits:
           cpus: '1.00'
-          memory: 3G
+          memory: 6G
 
   ray-worker:
     build:

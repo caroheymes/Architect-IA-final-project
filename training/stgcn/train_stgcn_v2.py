@@ -141,6 +141,7 @@ def train_model():
         in_channels=5,
         hidden_channels=HIDDEN_CHANNELS,
         out_channels=len(HORIZONS),
+        dropout=DROPOUT,
     ).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
