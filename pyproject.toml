@@ -33,7 +33,8 @@ ignore_missing_imports = true
 check_untyped_defs = false
 warn_return_any = false
 warn_unused_configs = true
-exclude = ["logs/", "data/", "models/", "plugins/"]
+exclude = ["logs/", "data/", "models/", "plugins/", "tests/", "utils/old_sans_interet/"]
+explicit_package_bases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -11,16 +11,16 @@ Workflow :
    - Branche B -> skip_retraining (Fin silencieuse si le modèle est performant)
 """
 
+import json
 import logging
 import os
-import json
-import requests
 from datetime import datetime, timedelta
 
+import requests
 from airflow import DAG
-from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.operators.empty import EmptyOperator
 from airflow.hooks.base import BaseHook
+from airflow.operators.empty import EmptyOperator
+from airflow.operators.python import BranchPythonOperator, PythonOperator
 
 # Configuration du Logger
 logger = logging.getLogger("airflow.task")
@@ -45,7 +45,7 @@ def evaluate_drift_and_performance(**kwargs):
         return "trigger_retraining_on_ray"
 
     try:
-        with open(metrics_path, "r", encoding="utf-8") as f:
+        with open(metrics_path, encoding="utf-8") as f:
             metrics_data = json.load(f)
 
         mae = None

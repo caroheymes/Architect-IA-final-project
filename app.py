@@ -578,7 +578,7 @@ def load_training_history_from_mlflow(run_id):
         df = df.sort_values("Epoch").reset_index(drop=True)
         return df
     except Exception as e:
-        logger.warning(f"⚠️ Impossible de récupérer les métriques depuis MLflow ({e})")
+        log_time(f"⚠️ Impossible de récupérer les métriques depuis MLflow ({e})")
         return None
 
 

@@ -1,9 +1,10 @@
-import os
-import sys
-import shutil
 import logging
-import torch
+import os
+import shutil
+import sys
+
 import numpy as np
+import torch
 
 # Configure logging
 logging.basicConfig(
@@ -16,8 +17,8 @@ logger = logging.getLogger("LyonFlow-Validation-Promotion")
 # Add current directory to PYTHONPATH
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from model import SpatioTemporalGCN
 from dataset import build_sliding_dataset
+from model import SpatioTemporalGCN
 
 # Environment variables
 USE_LOCAL_CSV = os.getenv("USE_LOCAL_CSV", "true").lower() == "true"

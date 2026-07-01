@@ -1,7 +1,8 @@
-import os
-import sys
-import subprocess
 import logging
+import os
+import subprocess
+import sys
+
 import ray
 
 # Configure logging
@@ -19,10 +20,9 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # This forces Ray to schedule the task on the ray-worker node where the GPU is available
 @ray.remote(num_gpus=1)
 def run_training_on_worker_gpu(env):
+    import logging
     import os
     import sys
-    import subprocess
-    import logging
     
     logging.basicConfig(
         level=logging.INFO,
