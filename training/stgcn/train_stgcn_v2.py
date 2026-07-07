@@ -388,11 +388,8 @@ def train_model():
         # Save metadata info dynamically
         try:
             import json
-            meta_data = {
-                "model_name": "STGCN_V2_AdamW",
-                "run_name": run_name,
-                "run_id": run_id
-            }
+
+            meta_data = {"model_name": "STGCN_V2_AdamW", "run_name": run_name, "run_id": run_id}
             meta_path = "models/stgcn_v2_metadata.json"
             os.makedirs("models", exist_ok=True)
             with open(meta_path, "w") as fm:
