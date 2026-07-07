@@ -1,10 +1,11 @@
-import functions_framework
 import json
 import logging
 import os
-import requests
-import pytz
 from datetime import datetime
+
+import functions_framework
+import pytz
+import requests
 from google.cloud import bigquery
 
 # Configure logging
