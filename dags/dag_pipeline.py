@@ -39,6 +39,10 @@ DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_POR
 OUTPUT_DIR = "/opt/airflow/data"
 
 
+# Reusable transformer to avoid expensive reconstruction inside the loop
+TRANSFORMER_2154_TO_4326 = pyproj.Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
+
+
 # ============================================================================
 # HELPER SPATIAL FUNCTIONS
 # ============================================================================
@@ -62,9 +66,6 @@ def transform_line_to_point(ligne_2154):
     if not ligne_2154 or ligne_2154.is_empty:
         return []
 
-    # Convert from EPSG:2154 (meters) to EPSG:4326 (degrees - WGS84)
-    proj_vers_4326 = pyproj.Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True).transform
-
     # Generate points spaced every 7 meters
     distances = np.arange(0, ligne_2154.length, 7)
     points = [ligne_2154.interpolate(d) for d in distances]
@@ -73,8 +74,9 @@ def transform_line_to_point(ligne_2154):
     if ligne_2154.length % 7 != 0:
         points.append(ligne_2154.interpolate(ligne_2154.length))
 
-    # Project coordinates to EPSG:4326
-    points = [transform(proj_vers_4326, p) for p in points]
+    # Project coordinates to EPSG:4326 using the global transformer
+    proj_func = TRANSFORMER_2154_TO_4326.transform
+    points = [transform(proj_func, p) for p in points]
     return points
 
 

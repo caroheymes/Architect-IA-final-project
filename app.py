@@ -908,8 +908,8 @@ with tab_pred:
 
             # Define speed categories and color map
             speed_color_map = {
-                "Lent (< 20 km/h)": "red",
-                "Moyen (20-30 km/h)": "orange",
+                "Lent (< 15 km/h)": "red",
+                "Moyen (15-30 km/h)": "orange",
                 "Rapide (> 30 km/h)": "green",
                 "Inconnu": "gray",
             }
@@ -917,12 +917,12 @@ with tab_pred:
             def get_speed_category(speed):
                 if pd.isna(speed):
                     return "Inconnu"
-                elif speed < 20:
-                    return "Lent (< 20 km/h)"
+                elif speed < 15:
+                    return "Lent (< 15 km/h)"
                 elif speed > 30:
                     return "Rapide (> 30 km/h)"
                 else:
-                    return "Moyen (20-30 km/h)"
+                    return "Moyen (15-30 km/h)"
 
             # Define diff categories and color map for the speed difference
             diff_color_map = {
@@ -1001,8 +1001,8 @@ with tab_pred:
 
             # Define colors in Hex for native engine
             hex_color_map = {
-                "Lent (< 20 km/h)": "#E11D48",  # Beautiful red (Tailwind rose-600)
-                "Moyen (20-30 km/h)": "#F59E0B",  # Beautiful orange (Tailwind amber-500)
+                "Lent (< 15 km/h)": "#E11D48",  # Beautiful red (Tailwind rose-600)
+                "Moyen (15-30 km/h)": "#F59E0B",  # Beautiful orange (Tailwind amber-500)
                 "Rapide (> 30 km/h)": "#10B981",  # Beautiful green (Tailwind emerald-500)
                 "Inconnu": "#6B7280",  # Gray (Tailwind gray-500)
                 "Sous-estimation (<-10 km/h)": "#3B82F6",  # Beautiful blue (Tailwind blue-500)
@@ -1088,6 +1088,7 @@ with tab_pred:
                                     },
                                 ),
                                 use_container_width=True,
+                                key=f"pydeck_map_{horizon_sel}_{metric_sel}_{max_segments}",
                             )
                             log_time("st.pydeck_chart call complete")
                         else:
@@ -1114,8 +1115,8 @@ with tab_pred:
                             """
                             <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px; margin-bottom: 20px; padding: 12px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e5e7eb;">
                                 <span style="font-weight: bold; font-size: 14px; color: #374151;">Légende des couleurs :</span>
-                                <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4B5563;"><span style="height: 12px; width: 12px; background-color: #E11D48; border-radius: 50%; display: inline-block;"></span> Lent (&lt; 20 km/h)</span>
-                                <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4B5563;"><span style="height: 12px; width: 12px; background-color: #F59E0B; border-radius: 50%; display: inline-block;"></span> Moyen (20-30 km/h)</span>
+                                <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4B5563;"><span style="height: 12px; width: 12px; background-color: #E11D48; border-radius: 50%; display: inline-block;"></span> Lent (&lt; 15 km/h)</span>
+                                <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4B5563;"><span style="height: 12px; width: 12px; background-color: #F59E0B; border-radius: 50%; display: inline-block;"></span> Moyen (15-30 km/h)</span>
                                 <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4B5563;"><span style="height: 12px; width: 12px; background-color: #10B981; border-radius: 50%; display: inline-block;"></span> Rapide (&gt; 30 km/h)</span>
                                 <span style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4B5563;"><span style="height: 12px; width: 12px; background-color: #6B7280; border-radius: 50%; display: inline-block;"></span> Inconnu</span>
                             </div>
@@ -1173,7 +1174,7 @@ with tab_pred:
                                 borderwidth=1,
                             ),
                         )
-                        st.plotly_chart(fig_map, use_container_width=True)
+                        st.plotly_chart(fig_map, use_container_width=True, key=f"plotly_scatter_map_{horizon_sel}_{metric_sel}_{max_segments}")
 
                     else:
                         lats = []
@@ -1253,7 +1254,7 @@ with tab_pred:
                             # Ensure lines are bold, thick, and highly visible on the map (default is 1-2, make it 5)
                             fig_map.update_traces(line=dict(width=5))
 
-                            st.plotly_chart(fig_map, use_container_width=True)
+                            st.plotly_chart(fig_map, use_container_width=True, key=f"plotly_line_map_{horizon_sel}_{metric_sel}_{max_segments}")
                             st.caption(
                                 f"🛣️ Rendu de la carte en mode **lignes (tracés)** : **{df_lines['id_rue'].nunique()}** segments routiers dessinés via un tracé continu de **{len(df_lines)}** coordonnées géométriques."
                             )
