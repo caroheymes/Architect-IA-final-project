@@ -743,7 +743,7 @@ def trigger_stgcn_prediction_on_ray():
     metadata_path = "/opt/airflow/project/models/active_model_metadata.json"
     if os.path.exists(metadata_path):
         try:
-            with open(metadata_path, "r") as f:
+            with open(metadata_path) as f:
                 meta = json.load(f)
                 model_name = meta.get("model_name", model_name)
                 run_name = meta.get("run_name", run_name)
