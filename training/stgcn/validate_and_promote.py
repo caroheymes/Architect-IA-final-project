@@ -172,6 +172,13 @@ def main():
         if os.path.exists(new_plot_path):
             shutil.copy(new_plot_path, prod_plot_path)
 
+        # Also copy the metadata file if it exists
+        new_meta_path = "models/stgcn_v2_metadata.json"
+        prod_meta_path = "models/active_model_metadata.json"
+        if os.path.exists(new_meta_path):
+            shutil.copy(new_meta_path, prod_meta_path)
+            logger.info(f"🚀 Copied metadata {new_meta_path} to {prod_meta_path}")
+
         logger.info("🚀 Promotion successful! Production model updated.")
         print("PROMOTION_SUCCESSFUL: true")
     else:

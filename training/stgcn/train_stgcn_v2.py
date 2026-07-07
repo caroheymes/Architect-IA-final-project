@@ -150,7 +150,9 @@ def train_model():
 
     logger.info(f"🚀 Starting STGCN v2 Training on device: {device.type.upper()}")
 
-    with mlflow.start_run(run_name=f"STGCN_v2_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"):
+    with mlflow.start_run(run_name=f"STGCN_v2_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}") as run:
+        run_id = run.info.run_id if run else "unknown_run_id"
+        run_name = run.info.run_name if run else f"STGCN_v2_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         mlflow.log_params(
             {
                 "model_type": "STGCN_V2_AdamW",
@@ -382,6 +384,23 @@ def train_model():
             mlflow.log_artifact(SCALER_OUT, artifact_path="model_checkpoints")
         except Exception as e:
             logger.warning(f"MLflow checkpoint/scaler log failed: {e}")
+
+        # Save metadata info dynamically
+        try:
+            import json
+            meta_data = {
+                "model_name": "STGCN_V2_AdamW",
+                "run_name": run_name,
+                "run_id": run_id
+            }
+            meta_path = "models/stgcn_v2_metadata.json"
+            os.makedirs("models", exist_ok=True)
+            with open(meta_path, "w") as fm:
+                json.dump(meta_data, fm, indent=4)
+            logger.info(f"💾 Model metadata successfully saved to {meta_path}")
+        except Exception as em:
+            logger.warning(f"Failed to save model metadata: {em}")
+
         logger.info(f"🏆 STGCN v2 training completed successfully! Model → {MODEL_OUT}, Scaler → {SCALER_OUT}")
 
 

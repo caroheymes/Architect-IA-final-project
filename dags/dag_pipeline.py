@@ -736,6 +736,22 @@ def trigger_stgcn_prediction_on_ray():
     ray_dashboard_url = "http://ray-head:8265"
     submit_url = f"{ray_dashboard_url}/api/jobs/"
 
+    # Load dynamic model metadata if available to prevent out-of-sync hardcoded display info
+    model_name = "STGCN_V2_AdamW"
+    run_name = "STGCN_v2_20260603_002414"
+    run_id = "a368b69d77134047b461ea001a3cc6dd"
+    metadata_path = "/opt/airflow/project/models/active_model_metadata.json"
+    if os.path.exists(metadata_path):
+        try:
+            with open(metadata_path, "r") as f:
+                meta = json.load(f)
+                model_name = meta.get("model_name", model_name)
+                run_name = meta.get("run_name", run_name)
+                run_id = meta.get("run_id", run_id)
+                logger.info(f"Loaded active model metadata from file: {model_name} | {run_name} (ID: {run_id})")
+        except Exception as e:
+            logger.warning(f"Could not load active model metadata file: {e}. Using fallback defaults.")
+
     payload = {
         "entrypoint": "cd /home/ray/project && python training/stgcn/predict_stgcn.py",
         "runtime_env": {
@@ -752,9 +768,9 @@ def trigger_stgcn_prediction_on_ray():
                 "POSTGRES_USER": os.getenv("POSTGRES_USER", "lyonflow"),
                 "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD", "lyonflow_password"),
                 "POSTGRES_DB": os.getenv("POSTGRES_DB", "lyonflow"),
-                "MODEL_NAME": "STGCN_V2_AdamW",
-                "RUN_NAME": "STGCN_v2_20260603_002414",
-                "RUN_ID": "a368b69d77134047b461ea001a3cc6dd",
+                "MODEL_NAME": model_name,
+                "RUN_NAME": run_name,
+                "RUN_ID": run_id,
             }
         },
     }
