@@ -29,6 +29,7 @@ logger = logging.getLogger("airflow.task")
 MAE_THRESHOLD = 4.5
 P_VALUE_THRESHOLD = 0.05
 
+
 def evaluate_drift_and_performance(**kwargs):
     """
     Analyse le fichier JSON produit par Evidently AI pour décider si le réentraînement est requis.
@@ -64,13 +65,17 @@ def evaluate_drift_and_performance(**kwargs):
 
         # 1. Log de la dérive pour observabilité pure (n'influe pas sur le trigger de réentraînement)
         if p_value is not None and p_value < P_VALUE_THRESHOLD:
-            logger.warning(f"⚠️ Dérive de données détectée sur la colonne 'target' (p-value de {p_value:.6f} < {P_VALUE_THRESHOLD}).")
+            logger.warning(
+                f"⚠️ Dérive de données détectée sur la colonne 'target' (p-value de {p_value:.6f} < {P_VALUE_THRESHOLD})."
+            )
         else:
             logger.info("📊 Pas de dérive de données significative détectée.")
 
         # 2. Condition de déclenchement du réentraînement basé sur la performance réelle du modèle
         if mae is not None and mae > MAE_THRESHOLD:
-            logger.info(f"🚨 RÉENTRAÎNEMENT REQUIS : Précision dégradée (MAE de {mae:.2f} km/h > {MAE_THRESHOLD:.2f} km/h).")
+            logger.info(
+                f"🚨 RÉENTRAÎNEMENT REQUIS : Précision dégradée (MAE de {mae:.2f} km/h > {MAE_THRESHOLD:.2f} km/h)."
+            )
             return "trigger_retraining_on_ray"
         else:
             logger.info(
@@ -82,6 +87,7 @@ def evaluate_drift_and_performance(**kwargs):
     except Exception as e:
         logger.error(f"❌ Erreur lors de l'analyse du fichier de métriques : {e}. Déclenchement de sécurité.")
         return "trigger_retraining_on_ray"
+
 
 def submit_ray_job_callable(script_name, env_overrides=None, **kwargs):
     """
@@ -115,16 +121,14 @@ def submit_ray_job_callable(script_name, env_overrides=None, **kwargs):
         "POSTGRES_PASSWORD": db_password,
         "POSTGRES_DB": db_name,
     }
-    
+
     # Appliquer les surcharges d'environnement si fournies
     if env_overrides:
         env_vars.update(env_overrides)
 
     payload = {
         "entrypoint": f"cd /home/ray/project && python {script_name}",
-        "runtime_env": {
-            "env_vars": env_vars
-        },
+        "runtime_env": {"env_vars": env_vars},
     }
 
     logger.info(f"Soumission du script '{script_name}' à Ray sur {submit_url}...")
@@ -157,6 +161,7 @@ def submit_ray_job_callable(script_name, env_overrides=None, **kwargs):
                 logger.warning(f"Impossible de récupérer les logs du job : {le}")
             raise Exception(error_msg)
 
+
 # Configuration par défaut du DAG
 default_args = {
     "owner": "lyonflow",
@@ -177,14 +182,13 @@ with DAG(
     max_active_runs=1,
     tags=["lyonflow", "monitoring", "retraining", "self-healing", "mlops"],
 ) as dag:
-
     # 1. Étape de Monitoring (Evidently AI)
     run_monitoring = PythonOperator(
         task_id="trigger_evidently_monitoring",
         python_callable=submit_ray_job_callable,
         op_kwargs={
             "script_name": "utils/monitoring_evidently.py",
-            "env_overrides": {"DATA_FOLDER_OUT": "/home/ray/project/data/out"}
+            "env_overrides": {"DATA_FOLDER_OUT": "/home/ray/project/data/out"},
         },
     )
 
@@ -200,10 +204,7 @@ with DAG(
         python_callable=submit_ray_job_callable,
         op_kwargs={
             "script_name": "training/stgcn/run_retraining.py",
-            "env_overrides": {
-                "EPOCHS": "100",
-                "HORIZONS": "6,12,36"
-            }
+            "env_overrides": {"EPOCHS": "100", "HORIZONS": "6,12,36"},
         },
     )
 
@@ -211,12 +212,7 @@ with DAG(
     validate_and_promote = PythonOperator(
         task_id="validate_and_promote_model",
         python_callable=submit_ray_job_callable,
-        op_kwargs={
-            "script_name": "training/stgcn/validate_and_promote.py",
-            "env_overrides": {
-                "HORIZONS": "6,12,36"
-            }
-        },
+        op_kwargs={"script_name": "training/stgcn/validate_and_promote.py", "env_overrides": {"HORIZONS": "6,12,36"}},
     )
 
     # 5. Fin silencieuse si pas de dérive

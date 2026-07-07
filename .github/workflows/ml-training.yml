@@ -55,7 +55,7 @@ jobs:
   # ──────────────────────────────────────────────
   export-data:
     name: Export Gold → CSV
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [test-model]
     steps:
       - uses: actions/checkout@v4

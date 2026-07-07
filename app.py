@@ -569,11 +569,7 @@ def load_training_history_from_mlflow(run_id):
         train_losses = [m.value for m in train_loss_history]
         test_maes = [m.value for m in test_mae_history]
 
-        df = pd.DataFrame({
-            "Epoch": epochs,
-            "Train Loss (std)": train_losses,
-            "Test MAE (km/h)": test_maes
-        })
+        df = pd.DataFrame({"Epoch": epochs, "Train Loss (std)": train_losses, "Test MAE (km/h)": test_maes})
         # Trier par époque pour être sûr de l'ordre
         df = df.sort_values("Epoch").reset_index(drop=True)
         return df
@@ -630,7 +626,9 @@ with tab_curves:
     df_metrics_mlflow = load_training_history_from_mlflow(selected_run_id)
 
     if df_metrics_mlflow is not None and not df_metrics_mlflow.empty:
-        st.success(f"🟢 Courbes d'apprentissage réelles chargées dynamiquement depuis MLflow (ID du Run : `{selected_run_id[:8]}`).")
+        st.success(
+            f"🟢 Courbes d'apprentissage réelles chargées dynamiquement depuis MLflow (ID du Run : `{selected_run_id[:8]}`)."
+        )
         fig_curves = plot_training_curves(df_metrics_mlflow)
         st.plotly_chart(fig_curves, use_container_width=True)
     else:
@@ -1174,7 +1172,11 @@ with tab_pred:
                                 borderwidth=1,
                             ),
                         )
-                        st.plotly_chart(fig_map, use_container_width=True, key=f"plotly_scatter_map_{horizon_sel}_{metric_sel}_{max_segments}")
+                        st.plotly_chart(
+                            fig_map,
+                            use_container_width=True,
+                            key=f"plotly_scatter_map_{horizon_sel}_{metric_sel}_{max_segments}",
+                        )
 
                     else:
                         lats = []
@@ -1254,7 +1256,11 @@ with tab_pred:
                             # Ensure lines are bold, thick, and highly visible on the map (default is 1-2, make it 5)
                             fig_map.update_traces(line=dict(width=5))
 
-                            st.plotly_chart(fig_map, use_container_width=True, key=f"plotly_line_map_{horizon_sel}_{metric_sel}_{max_segments}")
+                            st.plotly_chart(
+                                fig_map,
+                                use_container_width=True,
+                                key=f"plotly_line_map_{horizon_sel}_{metric_sel}_{max_segments}",
+                            )
                             st.caption(
                                 f"🛣️ Rendu de la carte en mode **lignes (tracés)** : **{df_lines['id_rue'].nunique()}** segments routiers dessinés via un tracé continu de **{len(df_lines)}** coordonnées géométriques."
                             )

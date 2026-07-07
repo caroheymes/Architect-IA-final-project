@@ -45,7 +45,9 @@ def get_params_from_optuna():
                 # Enforce Trial 3 (32 hidden channels, light-weight regularized champion)
                 trial_3 = next((t for t in study.trials if t.number == 3), None)
                 if trial_3:
-                    print("# Enforcing Trial 3 (32 hidden channels, light-weight regularized champion) from compact study.")
+                    print(
+                        "# Enforcing Trial 3 (32 hidden channels, light-weight regularized champion) from compact study."
+                    )
                     return trial_3.params
                 return study.best_params
             except Exception:

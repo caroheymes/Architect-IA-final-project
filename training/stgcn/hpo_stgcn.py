@@ -136,7 +136,9 @@ def objective(trial):
 
     # 4. Device and Model setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_channels, out_channels=3, dropout=dropout).to(device)
+    model = SpatioTemporalGCN(in_channels=5, hidden_channels=hidden_channels, out_channels=3, dropout=dropout).to(
+        device
+    )
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     mean_tensor = torch.tensor(scaler.mean_, dtype=torch.float, device=device).view(-1, 1)

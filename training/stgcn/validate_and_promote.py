@@ -8,9 +8,7 @@ import torch
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("LyonFlow-Validation-Promotion")
 
@@ -32,6 +30,7 @@ DB_USER = os.getenv("POSTGRES_USER", "lyonflow")
 DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 DB_NAME = os.getenv("POSTGRES_DB", "lyonflow")
 
+
 def evaluate_model(model, loader, device, mean_tensor, scale_tensor):
     model.eval()
     total_mae = 0.0
@@ -41,16 +40,17 @@ def evaluate_model(model, loader, device, mean_tensor, scale_tensor):
         for batch in loader:
             batch = batch.to(device)
             predictions = model(batch.x, batch.edge_index)
-            
+
             # De-normalize to km/h for true MAE
             pred_kmh = predictions * scale_tensor.repeat(batch.num_graphs, 1) + mean_tensor.repeat(batch.num_graphs, 1)
             y_kmh = batch.y * scale_tensor.repeat(batch.num_graphs, 1) + mean_tensor.repeat(batch.num_graphs, 1)
-            
+
             mae = torch.abs(pred_kmh - y_kmh).mean().item()
             total_mae += mae * batch.num_graphs
             total_samples += batch.num_graphs
 
     return total_mae / total_samples if total_samples > 0 else float("inf")
+
 
 def main():
     logger.info("🏁 Starting Model Validation & Promotion Process...")
@@ -60,6 +60,7 @@ def main():
     best_params = None
     try:
         import get_best_params
+
         best_params = get_best_params.get_params_from_optuna()
         if not best_params:
             best_params = get_best_params.get_params_from_mlflow()
@@ -95,13 +96,16 @@ def main():
     if USE_LOCAL_CSV:
         logger.info(f"📁 Loading local data from {DATA_FOLDER}...")
         from dataset import load_graph_topology_from_csv, load_traffic_series_from_csv
+
         num_nodes, edge_index = load_graph_topology_from_csv(DATA_FOLDER)
         vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = load_traffic_series_from_csv(DATA_FOLDER)
     else:
         logger.info("📡 Connecting to PostgreSQL database...")
         from sqlalchemy import create_engine
+
         engine = create_engine(f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
         from dataset import load_graph_topology, load_traffic_series
+
         num_nodes, edge_index = load_graph_topology(engine)
         vitesse_matrix_raw, hour_sin, hour_cos, day_sin, day_cos = load_traffic_series(engine)
         engine.dispose()
@@ -144,8 +148,10 @@ def main():
             if "spatial_gcn1.bias" in prod_state_dict:
                 inferred_channels = prod_state_dict["spatial_gcn1.bias"].shape[0]
                 logger.info(f"Inferred HIDDEN_CHANNELS of prod model: {inferred_channels}")
-            
-            prod_model = SpatioTemporalGCN(in_channels=5, hidden_channels=inferred_channels, out_channels=len(HORIZONS)).to(device)
+
+            prod_model = SpatioTemporalGCN(
+                in_channels=5, hidden_channels=inferred_channels, out_channels=len(HORIZONS)
+            ).to(device)
             prod_model.load_state_dict(prod_state_dict)
             mae_prod = evaluate_model(prod_model, test_loader, device, mean_tensor, scale_tensor)
             logger.info(f"🟢 Current Production Model Validation MAE: {mae_prod:.4f} km/h")
@@ -159,18 +165,19 @@ def main():
         logger.info("🏆 New model is BETTER! Promoting to production...")
         shutil.copy(new_model_path, prod_model_path)
         shutil.copy(new_scaler_path, prod_scaler_path)
-        
+
         # Also copy the error analysis plot if it exists
         new_plot_path = "models/stratified_error_analysis_v2.png"
         prod_plot_path = "models/stratified_error_analysis.png"
         if os.path.exists(new_plot_path):
             shutil.copy(new_plot_path, prod_plot_path)
-            
+
         logger.info("🚀 Promotion successful! Production model updated.")
         print("PROMOTION_SUCCESSFUL: true")
     else:
         logger.info("❌ New model did NOT outperform the current production model. Keeping current model.")
         print("PROMOTION_SUCCESSFUL: false")
+
 
 if __name__ == "__main__":
     main()

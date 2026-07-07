@@ -7,14 +7,13 @@ import ray
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("LyonFlow-Run-Retraining")
 
 # Add current directory to PYTHONPATH
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 
 # Define a Ray remote task that requires 1 GPU
 # This forces Ray to schedule the task on the ray-worker node where the GPU is available
@@ -23,20 +22,23 @@ def run_training_on_worker_gpu(env):
     import logging
     import os
     import sys
-    
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)]
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
     task_logger = logging.getLogger("LyonFlow-GPU-Training-Task")
-    
+
     train_script = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "train_stgcn_v2.py"))
     project_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
-    task_logger.info(f"🚀 Launching train_stgcn_v2.py on the GPU worker node in cwd={project_dir} (CUDA_VISIBLE_DEVICES={os.getenv('CUDA_VISIBLE_DEVICES')})...")
-    
+    task_logger.info(
+        f"🚀 Launching train_stgcn_v2.py on the GPU worker node in cwd={project_dir} (CUDA_VISIBLE_DEVICES={os.getenv('CUDA_VISIBLE_DEVICES')})..."
+    )
+
     result = subprocess.run([sys.executable, train_script], env=env, cwd=project_dir)
     return result.returncode
+
 
 def main():
     logger.info("🏁 Initializing Ray client connection...")
@@ -45,6 +47,7 @@ def main():
     logger.info("🚀 Loading optimal hyperparameters from Optuna...")
     try:
         import get_best_params
+
         best_params = get_best_params.get_params_from_optuna()
         if not best_params:
             logger.warning("⚠️ No parameters found in Optuna. Trying MLflow...")
@@ -84,7 +87,7 @@ def main():
     env["BATCH_SIZE"] = str(best_params.get("batch_size", 2))
     env["HIDDEN_CHANNELS"] = str(best_params.get("hidden_channels", 128))
     env["DROPOUT"] = str(best_params.get("dropout", 0.1))
-    
+
     # Handle learning rate naming differences
     lr_val = best_params.get("learning_rate") or best_params.get("lr") or 0.001
     env["LEARNING_RATE"] = str(lr_val)
@@ -99,15 +102,16 @@ def main():
     logger.info("Scheduling training task on Ray cluster (GPU)...")
     # Submit the task to the Ray cluster
     future = run_training_on_worker_gpu.remote(env)
-    
+
     # Wait for the task to finish and get the return code
     return_code = ray.get(future)
-    
+
     if return_code != 0:
         logger.error(f"❌ GPU Training task failed with exit code {return_code}")
         sys.exit(return_code)
-        
+
     logger.info("🟢 GPU Training wrapper finished successfully.")
+
 
 if __name__ == "__main__":
     main()

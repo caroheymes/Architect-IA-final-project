@@ -25,6 +25,7 @@ SILVER_DATASET = os.environ.get("BQ_SILVER_DATASET", "silver")
 SILVER_TABLE = os.environ.get("BQ_SILVER_TABLE", "trafic_vitesse_propre")
 GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
 
+
 # Helper functions (copied from dag_pipeline.py)
 def transform_line_to_point(ligne_2154):
     if not ligne_2154 or ligne_2154.is_empty:
@@ -36,6 +37,7 @@ def transform_line_to_point(ligne_2154):
         points.append(ligne_2154.interpolate(ligne_2154.length))
     points = [transform(proj_vers_4326, p) for p in points]
     return points
+
 
 def create_merged_polygon_from_hexes(h3_id_list):
     if not h3_id_list:
@@ -54,10 +56,12 @@ def create_merged_polygon_from_hexes(h3_id_list):
                 boundary = h3.cell_to_boundary(h)
                 polygons.append(Polygon([(lon, lat) for lat, lon in boundary]))
             from shapely.ops import unary_union
+
             return unary_union(polygons)
     except Exception as e:
         logger.error(f"Error merging H3 hexagons: {e}")
         return None
+
 
 def get_speed_category(speed):
     # Match user's new threshold logic: < 15 is red, 15-30 is orange, > 30 is green
@@ -70,29 +74,30 @@ def get_speed_category(speed):
     else:
         return "Moyen (15-30 km/h)"
 
+
 @functions_framework.http
 def transform_traffic_data_gcf(request):
     logger.info("Starting spatial data transformation GCF...")
     if not PROJECT_ID:
         logger.error("BQ_PROJECT_ID environment variable is missing.")
         return "Error: Missing GCP project configuration.", 500
-        
+
     bq_client = bigquery.Client(project=PROJECT_ID)
-    
+
     # 1. Fetch latest raw snapshot from BigQuery
     logger.info("Fetching the latest raw record from bronze BigQuery table...")
     query = f"""
         SELECT raw_data FROM `{PROJECT_ID}.{BRONZE_DATASET}.{BRONZE_TABLE}` 
         ORDER BY fetched_at DESC LIMIT 1
     """
-    
+
     try:
         query_job = bq_client.query(query)
         results = list(query_job.result())
     except Exception as e:
         logger.error(f"Error reading from BigQuery bronze layer: {e}")
         return f"Failed to read from BigQuery: {e}", 500
-        
+
     if not results:
         logger.warning("No data found in bronze layer.")
         return "No source data found.", 200
@@ -102,7 +107,7 @@ def transform_traffic_data_gcf(request):
         raw_payload = json.loads(raw_data_field)
     else:
         raw_payload = raw_data_field
-        
+
     features = raw_payload.get("features", [])
     if not features:
         logger.warning("Source payload contains no features.")
@@ -111,7 +116,7 @@ def transform_traffic_data_gcf(request):
     # 2. DataFrame transformations
     import geopandas as gpd
     from geopandas import GeoDataFrame
-    
+
     trafic = pd.json_normalize(features)
     cols = [c.replace(".", "_") for c in trafic.columns]
     trafic.columns = cols
@@ -154,9 +159,7 @@ def transform_traffic_data_gcf(request):
     gdf["properties_vitesse"] = gdf["properties_vitesse"].astype(str).str.split(" ").str[0]
     gdf["properties_vitesse"] = pd.to_numeric(gdf["properties_vitesse"], errors="coerce")
 
-    mean_speed_df = (
-        gdf.groupby(by="properties_libelle").agg(mean_speed=("properties_vitesse", "mean")).reset_index()
-    )
+    mean_speed_df = gdf.groupby(by="properties_libelle").agg(mean_speed=("properties_vitesse", "mean")).reset_index()
     gdf = gdf.merge(mean_speed_df, on="properties_libelle", how="left")
     gdf["properties_vitesse"] = [
         elem if not pd.isna(elem) else mean_speed if not pd.isna(mean_speed) else np.nan
@@ -198,12 +201,12 @@ def transform_traffic_data_gcf(request):
         try:
             storage_client = storage.Client()
             bucket = storage_client.bucket(GCS_BUCKET_NAME)
-            
+
             # Upload CSV
             csv_blob = bucket.blob(f"historical/{csv_filename}")
             csv_blob.upload_from_string(csv_data, content_type="text/csv")
             logger.info(f"Uploaded CSV blob: historical/{csv_filename}")
-            
+
             # Upload GeoJSON
             json_blob = bucket.blob(f"historical/{json_filename}")
             json_blob.upload_from_string(json_data, content_type="application/json")
@@ -222,9 +225,7 @@ def transform_traffic_data_gcf(request):
     )
     df_silver["points_json"] = df_silver["points"].apply(lambda lst: json.dumps(lst) if lst else None)
     df_silver["hexes_json"] = df_silver["hexes"].apply(lambda lst: json.dumps(lst) if lst else None)
-    df_silver["merged_h3_geometry_json"] = df_silver["merged_h3_geometry"].apply(
-        lambda d: json.dumps(d) if d else None
-    )
+    df_silver["merged_h3_geometry_json"] = df_silver["merged_h3_geometry"].apply(lambda d: json.dumps(d) if d else None)
     df_silver["transformed_at"] = datetime.now(pytz.UTC).isoformat()
 
     columns_to_write = [
@@ -245,16 +246,16 @@ def transform_traffic_data_gcf(request):
         "merged_h3_geometry_json",
         "transformed_at",
     ]
-    
+
     # Ensure types are correct for BigQuery JSON load
     df_bq = df_silver[columns_to_write].copy()
-    
+
     # Fill NaN values to prevent BQ loading errors
     df_bq["properties_twgid"] = df_bq["properties_twgid"].fillna(0).astype(int)
     df_bq["properties_gid"] = df_bq["properties_gid"].fillna(0).astype(int)
     df_bq["properties_vitesse"] = df_bq["properties_vitesse"].fillna(0.0).astype(float)
     df_bq["properties_est_a_jour"] = df_bq["properties_est_a_jour"].fillna(False).astype(bool)
-    
+
     rows_to_insert = df_bq.to_dict(orient="records")
 
     # Initialize silver dataset and table
@@ -286,7 +287,7 @@ def transform_traffic_data_gcf(request):
         bigquery.SchemaField("merged_h3_geometry_json", "STRING"),
         bigquery.SchemaField("transformed_at", "TIMESTAMP"),
     ]
-    
+
     try:
         bq_client.get_table(table_ref)
     except Exception:

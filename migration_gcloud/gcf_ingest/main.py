@@ -20,6 +20,7 @@ PROJECT_ID = os.environ.get("GCP_PROJECT") or os.environ.get("BQ_PROJECT_ID")
 DATASET_ID = os.environ.get("BQ_DATASET_ID", "bronze")
 TABLE_ID = os.environ.get("BQ_TABLE_ID", "trafic_vitesse_brute")
 
+
 @functions_framework.http
 def ingest_traffic_data_gcf(request):
     logger.info("Starting real-time traffic data ingestion...")
@@ -43,7 +44,7 @@ def ingest_traffic_data_gcf(request):
 
     # Initialize BigQuery client
     client = bigquery.Client(project=PROJECT_ID)
-    
+
     # Create dataset if not exists
     dataset_ref = client.dataset(DATASET_ID)
     try:
@@ -52,7 +53,7 @@ def ingest_traffic_data_gcf(request):
     except Exception:
         logger.info(f"Creating dataset {DATASET_ID}...")
         dataset = bigquery.Dataset(dataset_ref)
-        dataset.location = "EU" # Lyon is in Europe, so EU location makes sense
+        dataset.location = "EU"  # Lyon is in Europe, so EU location makes sense
         client.create_dataset(dataset)
 
     # Create table if not exists
@@ -61,7 +62,7 @@ def ingest_traffic_data_gcf(request):
         bigquery.SchemaField("fetched_at", "TIMESTAMP", mode="REQUIRED"),
         bigquery.SchemaField("raw_data", "JSON", mode="REQUIRED"),
     ]
-    
+
     try:
         client.get_table(table_ref)
         logger.info(f"Table {TABLE_ID} already exists.")
@@ -71,16 +72,13 @@ def ingest_traffic_data_gcf(request):
         client.create_table(table)
 
     # Insert row
-    rows_to_insert = [
-        {
-            "fetched_at": fetched_at_utc.isoformat(),
-            "raw_data": json.dumps(raw_payload)
-        }
-    ]
+    rows_to_insert = [{"fetched_at": fetched_at_utc.isoformat(), "raw_data": json.dumps(raw_payload)}]
 
     errors = client.insert_rows_json(table_ref, rows_to_insert)
     if errors == []:
-        logger.info(f"🟢 Ingestion successfully saved to BigQuery at {fetched_at_local.strftime('%Y-%m-%d %H:%M:%S %Z')}!")
+        logger.info(
+            f"🟢 Ingestion successfully saved to BigQuery at {fetched_at_local.strftime('%Y-%m-%d %H:%M:%S %Z')}!"
+        )
         return "Ingestion successful.", 200
     else:
         logger.error(f"Failed to insert rows: {errors}")
