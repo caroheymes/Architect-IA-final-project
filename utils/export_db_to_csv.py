@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 # Configuration de la base de données via variables d'environnement
 DB_USER = os.getenv("POSTGRES_USER") or "lyonflow"
 DB_PASSWORD = os.getenv("POSTGRES_PASSWORD") or "lyonflow_password"
-DB_HOST = os.getenv("POSTGRES_HOST") or "localhost"
+DB_HOST = os.getenv("POSTGRES_HOST") or "127.0.0.1"
 DB_PORT = os.getenv("POSTGRES_PORT") or "5432"
 DB_NAME = os.getenv("POSTGRES_DB") or "lyonflow"
 

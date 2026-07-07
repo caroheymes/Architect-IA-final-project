@@ -20,11 +20,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("LyonFlow-STGCN-Train")
 
 # Environment and database configuration
-DB_USER = os.getenv("POSTGRES_USER", "lyonflow")
-DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "lyonflow_password")
-DB_HOST = os.getenv("POSTGRES_HOST", "localhost")
-DB_PORT = os.getenv("POSTGRES_PORT", "5432")
-DB_NAME = os.getenv("POSTGRES_DB", "lyonflow")
+DB_USER = os.getenv("POSTGRES_USER") or "lyonflow"
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD") or "lyonflow_password"
+DB_HOST = os.getenv("POSTGRES_HOST") or "127.0.0.1"
+DB_PORT = os.getenv("POSTGRES_PORT") or "5432"
+DB_NAME = os.getenv("POSTGRES_DB") or "lyonflow"
 
 # MLflow configuration
 MLFLOW_URL = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
