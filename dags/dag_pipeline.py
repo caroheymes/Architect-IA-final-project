@@ -14,7 +14,7 @@ import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from geopandas import GeoDataFrame
-from shapely.geometry import LineString, Polygon, shape
+from shapely.geometry import LineString, MultiPoint, Polygon, shape
 from shapely.ops import transform
 from sqlalchemy import create_engine, text
 
@@ -68,16 +68,17 @@ def transform_line_to_point(ligne_2154):
 
     # Generate points spaced every 7 meters
     distances = np.arange(0, ligne_2154.length, 7)
-    points = [ligne_2154.interpolate(d) for d in distances]
-
-    # Always include the exact end point
     if ligne_2154.length % 7 != 0:
-        points.append(ligne_2154.interpolate(ligne_2154.length))
+        distances = np.append(distances, ligne_2154.length)
 
-    # Project coordinates to EPSG:4326 using the global transformer
+    # Bundle all interpolated points in Lambert-93 as a single MultiPoint
+    points_2154 = MultiPoint([ligne_2154.interpolate(d) for d in distances])
+
+    # Project the entire MultiPoint at once using the global transformer (highly optimized)
     proj_func = TRANSFORMER_2154_TO_4326.transform
-    points = [transform(proj_func, p) for p in points]
-    return points
+    points_wgs84 = transform(proj_func, points_2154)
+
+    return list(points_wgs84.geoms)
 
 
 def create_merged_polygon_from_hexes(h3_id_list):
