@@ -661,11 +661,11 @@ with tab_err:
     4. **Boîtes à moustaches (Boxplots)** : Distribution statistique des vitesses prédites par rapport à la réalité terrain.
     """)
 
-    latest_plot_path = "data/stratified_error_analysis.png"
+    latest_plot_path = "models/stratified_error_analysis.png"
+    if not os.path.exists(latest_plot_path):
+        latest_plot_path = "data/stratified_error_analysis.png"
     if not os.path.exists(latest_plot_path):
         latest_plot_path = "data/out/stratified_error_analysis.png"
-    if not os.path.exists(latest_plot_path):
-        latest_plot_path = "models/stratified_error_analysis.png"
 
     if os.path.exists(latest_plot_path):
         st.success("🟢 Diagnostic stratifié d'erreur récupéré localement.")
