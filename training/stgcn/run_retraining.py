@@ -49,6 +49,7 @@ def main():
         # Set default to 600 timestamps (~2 days of history) to cover the new drifted patterns
         os.environ["SEQ_LEN_EXPORT"] = os.getenv("SEQ_LEN_EXPORT", "800")
         from utils.export_db_to_csv import run_export
+
         run_export()
         logger.info("🟢 Traffic series successfully updated.")
     except Exception as e:

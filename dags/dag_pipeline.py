@@ -96,10 +96,12 @@ def _create_merged_polygon_from_hexes_cached(unique_hexes_tuple):
                 boundary = h3.cell_to_boundary(h)
                 polygons.append(Polygon([(lon, lat) for lat, lon in boundary]))
             from shapely.ops import unary_union
+
             return unary_union(polygons)
     except Exception as e:
         logger.error(f"Error merging H3 hexagons: {e}")
         return None
+
 
 def create_merged_polygon_from_hexes(h3_id_list):
     """Fusionne un ensemble de cellules H3 en un polygone Shapely unique (avec cache LRU).
