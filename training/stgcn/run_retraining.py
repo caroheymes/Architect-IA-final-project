@@ -11,7 +11,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("LyonFlow-Run-Retraining")
 
-# Add current directory to PYTHONPATH
+# Add project root and current directory to sys.path
+project_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
+sys.path.append(project_dir)
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -41,6 +43,17 @@ def run_training_on_worker_gpu(env):
 
 
 def main():
+    # 0. Refresh traffic_series.csv from PostgreSQL to train on the drifted data
+    logger.info("🔄 Refreshing traffic_series.csv from PostgreSQL database...")
+    try:
+        # Set default to 600 timestamps (~2 days of history) to cover the new drifted patterns
+        os.environ["SEQ_LEN_EXPORT"] = os.getenv("SEQ_LEN_EXPORT", "800")
+        from utils.export_db_to_csv import run_export
+        run_export()
+        logger.info("🟢 Traffic series successfully updated.")
+    except Exception as e:
+        logger.error(f"❌ Failed to refresh CSV from database: {e}. Falling back to existing files.")
+
     logger.info("🏁 Initializing Ray client connection...")
     ray.init(address="auto", ignore_reinit_error=True)
 

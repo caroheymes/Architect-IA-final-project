@@ -163,20 +163,20 @@ def main():
     # 4. Compare and Promote
     if mae_new < mae_prod:
         logger.info("🏆 New model is BETTER! Promoting to production...")
-        shutil.copy(new_model_path, prod_model_path)
-        shutil.copy(new_scaler_path, prod_scaler_path)
+        shutil.copyfile(new_model_path, prod_model_path)
+        shutil.copyfile(new_scaler_path, prod_scaler_path)
 
         # Also copy the error analysis plot if it exists
         new_plot_path = "models/stratified_error_analysis_v2.png"
         prod_plot_path = "models/stratified_error_analysis.png"
         if os.path.exists(new_plot_path):
-            shutil.copy(new_plot_path, prod_plot_path)
+            shutil.copyfile(new_plot_path, prod_plot_path)
 
         # Also copy the metadata file if it exists
         new_meta_path = "models/stgcn_v2_metadata.json"
         prod_meta_path = "models/active_model_metadata.json"
         if os.path.exists(new_meta_path):
-            shutil.copy(new_meta_path, prod_meta_path)
+            shutil.copyfile(new_meta_path, prod_meta_path)
             logger.info(f"🚀 Copied metadata {new_meta_path} to {prod_meta_path}")
 
         logger.info("🚀 Promotion successful! Production model updated.")

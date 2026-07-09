@@ -182,7 +182,6 @@ def generate_report():
 
     # 4. Import d'Evidently
     from evidently import DataDefinition, Dataset, Regression, Report
-    from evidently.metrics import ValueDrift
     from evidently.presets import RegressionPreset
 
     # 5. Exécution du diagnostic d'observabilité
@@ -191,8 +190,8 @@ def generate_report():
     ref_dataset = Dataset.from_pandas(df_ref_evidently, data_definition=data_def)
     curr_dataset = Dataset.from_pandas(df_curr_evidently, data_definition=data_def)
 
-    logger.info("🤖 Calcul des métriques de régression et dérives...")
-    report = Report(metrics=[RegressionPreset(), ValueDrift(column="target", method="ks", threshold=0.05)])
+    logger.info("🤖 Calcul des métriques de régression...")
+    report = Report(metrics=[RegressionPreset()])
     result = report.run(reference_data=ref_dataset, current_data=curr_dataset)
 
     # 6. Sauvegarde des rapports

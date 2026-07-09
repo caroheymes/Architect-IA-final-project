@@ -14,7 +14,8 @@ import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from geopandas import GeoDataFrame
-from shapely.geometry import LineString, MultiPoint, Polygon, shape
+from functools import lru_cache
+from shapely.geometry import LineString, MultiPoint, Polygon, shape, Point
 from shapely.ops import transform
 from sqlalchemy import create_engine, text
 
@@ -71,18 +72,37 @@ def transform_line_to_point(ligne_2154):
     if ligne_2154.length % 7 != 0:
         distances = np.append(distances, ligne_2154.length)
 
-    # Bundle all interpolated points in Lambert-93 as a single MultiPoint
-    points_2154 = MultiPoint([ligne_2154.interpolate(d) for d in distances])
+    # Highly optimized row-by-row projection: bypass shapely.ops.transform overhead
+    coords = [ligne_2154.interpolate(d).coords[0] for d in distances]
+    xs, ys = zip(*coords)
+    lons, lats = TRANSFORMER_2154_TO_4326.transform(xs, ys)
+    return [Point(lon, lat) for lon, lat in zip(lons, lats)]
 
-    # Project the entire MultiPoint at once using the global transformer (highly optimized)
-    proj_func = TRANSFORMER_2154_TO_4326.transform
-    points_wgs84 = transform(proj_func, points_2154)
 
-    return list(points_wgs84.geoms)
-
+@lru_cache(maxsize=4096)
+def _create_merged_polygon_from_hexes_cached(unique_hexes_tuple):
+    if not unique_hexes_tuple:
+        return None
+    try:
+        if hasattr(h3, "cells_to_geo"):
+            geojson_dict = h3.cells_to_geo(list(unique_hexes_tuple))
+            return shape(geojson_dict)
+        elif hasattr(h3, "cells_to_geojson"):
+            geojson_dict = h3.cells_to_geojson(list(unique_hexes_tuple))
+            return shape(geojson_dict)
+        else:
+            polygons = []
+            for h in unique_hexes_tuple:
+                boundary = h3.cell_to_boundary(h)
+                polygons.append(Polygon([(lon, lat) for lat, lon in boundary]))
+            from shapely.ops import unary_union
+            return unary_union(polygons)
+    except Exception as e:
+        logger.error(f"Error merging H3 hexagons: {e}")
+        return None
 
 def create_merged_polygon_from_hexes(h3_id_list):
-    """Fusionne un ensemble de cellules H3 en un polygone Shapely unique.
+    """Fusionne un ensemble de cellules H3 en un polygone Shapely unique (avec cache LRU).
 
     Plusieurs versions de la librairie `h3` exposent des API différentes
     (`cells_to_geo` en v4, `cells_to_geojson` en v3, sinon on reconstruit
@@ -97,30 +117,9 @@ def create_merged_polygon_from_hexes(h3_id_list):
     """
     if not h3_id_list:
         return None
-
-    # On dédoublonne pour éviter de traiter plusieurs fois la même cellule.
-    unique_hexes = list(set(h3_id_list))
-
-    try:
-        # Check for H3 v4 capabilities
-        if hasattr(h3, "cells_to_geo"):
-            geojson_dict = h3.cells_to_geo(unique_hexes)
-            return shape(geojson_dict)
-        elif hasattr(h3, "cells_to_geojson"):
-            geojson_dict = h3.cells_to_geojson(unique_hexes)
-            return shape(geojson_dict)
-        else:
-            # Fallback by generating individual polygons and merging
-            polygons = []
-            for h in unique_hexes:
-                boundary = h3.cell_to_boundary(h)
-                polygons.append(Polygon([(lon, lat) for lat, lon in boundary]))
-            from shapely.ops import unary_union
-
-            return unary_union(polygons)
-    except Exception as e:
-        logger.error(f"Error merging H3 hexagons: {e}")
-        return None
+    # Sorting and converting to tuple to guarantee max cache hit rates
+    unique_hexes_tuple = tuple(sorted(set(h3_id_list)))
+    return _create_merged_polygon_from_hexes_cached(unique_hexes_tuple)
 
 
 def get_speed_category(speed):
@@ -777,7 +776,7 @@ def trigger_stgcn_prediction_on_ray():
     }
 
     logger.info(f"Soumission du job de prédiction à Ray sur {submit_url}...")
-    response = requests.post(submit_url, json=payload, timeout=30)
+    response = requests.post(submit_url, json=payload, headers={"Connection": "close"}, timeout=(5, 30))
     response.raise_for_status()
     job_data = response.json()
     job_id = job_data["job_id"]
@@ -786,11 +785,18 @@ def trigger_stgcn_prediction_on_ray():
     status_url = f"{ray_dashboard_url}/api/jobs/{job_id}"
     while True:
         time.sleep(10)
-        status_resp = requests.get(status_url, timeout=30)
-        status_resp.raise_for_status()
-        status_data = status_resp.json()
-        status = status_data["status"]
-        logger.info(f"État du Job Ray {job_id} : {status}")
+        try:
+            status_resp = requests.get(status_url, headers={"Connection": "close"}, timeout=(5, 15))
+            status_resp.raise_for_status()
+            status_data = status_resp.json()
+            status = status_data["status"]
+            logger.info(f"État du Job Ray {job_id} : {status}")
+        except Exception as e:
+            logger.warning(
+                f"⚠️ Erreur lors de la récupération du statut du Job de prédiction {job_id} : {e}. "
+                "Nouvelle tentative au prochain cycle..."
+            )
+            continue
 
         if status == "SUCCEEDED":
             logger.info("🟢 Le Job Ray de prédiction STGCN a été complété avec succès !")
@@ -800,7 +806,7 @@ def trigger_stgcn_prediction_on_ray():
             logger.error(error_msg)
             try:
                 logs_url = f"{ray_dashboard_url}/api/jobs/{job_id}/logs"
-                logs_resp = requests.get(logs_url, timeout=30)
+                logs_resp = requests.get(logs_url, headers={"Connection": "close"}, timeout=(5, 30))
                 if logs_resp.status_code == 200:
                     logger.error(f"Logs du job Ray :\n{logs_resp.json().get('logs', '')}")
             except Exception as e:

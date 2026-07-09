@@ -50,7 +50,6 @@ def evaluate_drift_and_performance(**kwargs):
             metrics_data = json.load(f)
 
         mae = None
-        p_value = None
 
         metrics_list = metrics_data.get("metrics", [])
         for m in metrics_list:
@@ -58,18 +57,8 @@ def evaluate_drift_and_performance(**kwargs):
             if "MAE(regression_name" in metric_name:
                 val = m.get("value", {})
                 mae = val.get("mean") if isinstance(val, dict) else val
-            elif "ValueDrift" in metric_name or m.get("config", {}).get("type") == "evidently:metric_v2:ValueDrift":
-                p_value = m.get("value")
 
-        logger.info(f"Métriques extraites -> MAE: {mae} km/h, p-value Dérive: {p_value}")
-
-        # 1. Log de la dérive pour observabilité pure (n'influe pas sur le trigger de réentraînement)
-        if p_value is not None and p_value < P_VALUE_THRESHOLD:
-            logger.warning(
-                f"⚠️ Dérive de données détectée sur la colonne 'target' (p-value de {p_value:.6f} < {P_VALUE_THRESHOLD})."
-            )
-        else:
-            logger.info("📊 Pas de dérive de données significative détectée.")
+        logger.info(f"Métrique extraite -> MAE: {mae} km/h")
 
         # 2. Condition de déclenchement du réentraînement basé sur la performance réelle du modèle
         if mae is not None and mae > MAE_THRESHOLD:
@@ -132,7 +121,7 @@ def submit_ray_job_callable(script_name, env_overrides=None, **kwargs):
     }
 
     logger.info(f"Soumission du script '{script_name}' à Ray sur {submit_url}...")
-    response = requests.post(submit_url, json=payload, timeout=30)
+    response = requests.post(submit_url, json=payload, headers={"Connection": "close"}, timeout=(5, 30))
     response.raise_for_status()
     job_id = response.json()["job_id"]
     logger.info(f"Job Ray soumis avec succès. ID : {job_id}")
@@ -141,11 +130,18 @@ def submit_ray_job_callable(script_name, env_overrides=None, **kwargs):
     status_url = f"{ray_dashboard_url}/api/jobs/{job_id}"
     while True:
         time.sleep(15)
-        status_resp = requests.get(status_url, timeout=30)
-        status_resp.raise_for_status()
-        status_data = status_resp.json()
-        status = status_data["status"]
-        logger.info(f"État du Job Ray {job_id} : {status}")
+        try:
+            status_resp = requests.get(status_url, headers={"Connection": "close"}, timeout=(5, 15))
+            status_resp.raise_for_status()
+            status_data = status_resp.json()
+            status = status_data["status"]
+            logger.info(f"État du Job Ray {job_id} : {status}")
+        except Exception as e:
+            logger.warning(
+                f"⚠️ Erreur lors de la récupération du statut du Job Ray {job_id} : {e}. "
+                "Nouvelle tentative au prochain cycle..."
+            )
+            continue
 
         if status == "SUCCEEDED":
             logger.info(f"🟢 Le Job Ray '{script_name}' s'est complété avec succès !")
@@ -154,7 +150,7 @@ def submit_ray_job_callable(script_name, env_overrides=None, **kwargs):
             error_msg = f"🔴 Le Job Ray '{script_name}' a échoué avec le statut : {status}."
             logger.error(error_msg)
             try:
-                logs_resp = requests.get(f"{status_url}/logs", timeout=30)
+                logs_resp = requests.get(f"{status_url}/logs", headers={"Connection": "close"}, timeout=(5, 30))
                 if logs_resp.status_code == 200:
                     logger.error(f"Logs du job Ray :\n{logs_resp.json().get('logs', '')}")
             except Exception as le:
