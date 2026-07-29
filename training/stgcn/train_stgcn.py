@@ -422,12 +422,12 @@ def train_model():
         # --- Graphique 4 : Distribution des Prédictions vs Réel (Boxplot) ---
         axs[3].boxplot(
             box_data,
-            labels=bin_labels,
             showfliers=False,
             patch_artist=True,
             boxprops=dict(facecolor="#E6E6FA", color="#5D3FD3", alpha=0.7),
             medianprops=dict(color="red", linewidth=2),
         )
+        axs[3].set_xticklabels(bin_labels)
 
         bin_centers = []
         for i in range(len(bins) - 1):

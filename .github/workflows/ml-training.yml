@@ -54,32 +54,32 @@ jobs:
   # ──────────────────────────────────────────────
   # 2. Export données Gold → CSV
   # ──────────────────────────────────────────────
-  export-data:
-    name: Export Gold → CSV
-    runs-on: ubuntu-latest
-    needs: [test-model]
-    steps:
-      - uses: actions/checkout@v4
+  # export-data:
+  #   name: Export Gold → CSV
+  #   runs-on: ubuntu-latest
+  #   needs: [test-model]
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies
-        run: pip install sqlalchemy psycopg2-binary pandas
+  #     - name: Install dependencies
+  #       run: pip install sqlalchemy psycopg2-binary pandas
 
-      - name: Export Gold layer to CSV
-        run: |
-          export DATA_FOLDER=data/in
-          export SEQ_LEN_EXPORT=150
-          python utils/export_db_to_csv.py
+  #     - name: Export Gold layer to CSV
+  #       run: |
+  #         export DATA_FOLDER=data/in
+  #         export SEQ_LEN_EXPORT=150
+  #         python utils/export_db_to_csv.py
 
-      - name: Upload CSV artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: gold-csv-export
-          path: data/in/
-          retention-days: 7
+  #     - name: Upload CSV artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: gold-csv-export
+  #         path: data/in/
+  #         retention-days: 7
 
   # ──────────────────────────────────────────────
   # 3. HPO Optuna (conditionnel)
