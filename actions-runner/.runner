@@ -1,0 +1,11 @@
+﻿{
+  "agentId": 21,
+  "agentName": "DESKTOP-D28PKSC",
+  "poolId": 1,
+  "poolName": "Default",
+  "serverUrl": "https://pipelinesghubeus3.actions.githubusercontent.com/3ZRwIJC7o4uK4Mo04IWorUnT54IgohzaRiD6BUnsxhvHQF3Zur/",
+  "gitHubUrl": "https://github.com/caroheymes/Architect-IA-final-project",
+  "workFolder": "_work",
+  "useV2Flow": true,
+  "serverUrlV2": "https://broker.actions.githubusercontent.com/"
+}

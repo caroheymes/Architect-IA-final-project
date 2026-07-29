@@ -15,7 +15,7 @@ on:
         description: "Sauter HPO et utiliser les meilleurs params existants"
         required: false
         type: boolean
-        default: false
+        default: true
   schedule:
     - cron: "0 3 * * 0"  # Dimanche 3h du matin
 
@@ -56,7 +56,7 @@ jobs:
   # ──────────────────────────────────────────────
   export-data:
     name: Export Gold → CSV
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: [test-model]
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +86,7 @@ jobs:
   # ──────────────────────────────────────────────
   hpo:
     name: HPO Optuna (${{ inputs.n_trials || '20' }} trials)
-    runs-on: [self-hosted, gpu]
+    runs-on: ubuntu-latest
     needs: [export-data]
     if: ${{ !inputs.skip_hpo }}
     steps:
@@ -133,7 +133,7 @@ jobs:
   # ──────────────────────────────────────────────
   train-champion:
     name: Train Champion STGCN
-    runs-on: [self-hosted, gpu]
+    runs-on: ubuntu-latest
     needs: [hpo]
     if: ${{ always() && needs.export-data.result == 'success' }}
     steps:
