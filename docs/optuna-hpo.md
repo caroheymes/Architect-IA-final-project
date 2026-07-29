@@ -33,8 +33,8 @@ TPE modélise `P(hyperparams | score < seuil)` et `P(hyperparams | score >= seui
 
 ```python
 pruner = optuna.pruners.MedianPruner(
-    n_startup_trials=5,   # Pas de pruning sur les 5 premiers trials
-    n_warmup_steps=3      # Pas de pruning sur les 3 premières epochs d'un trial
+    n_startup_trials=5,  # Pas de pruning sur les 5 premiers trials
+    n_warmup_steps=3,  # Pas de pruning sur les 3 premières epochs d'un trial
 )
 ```
 
@@ -50,16 +50,15 @@ Fonctionnement :
 
 ```python
 postgres_storage = optuna.storages.RDBStorage(
-    url="postgresql+psycopg2://lyonflow:pass@postgres:5432/lyonflow",
-    engine_kwargs={"pool_pre_ping": True}
+    url="postgresql+psycopg2://lyonflow:pass@postgres:5432/lyonflow", engine_kwargs={"pool_pre_ping": True}
 )
 
 study = optuna.create_study(
     study_name="lyonflow_stgcn_tuning_v1",
     storage=postgres_storage,
-    load_if_exists=True,        # Reprendre une étude existante
+    load_if_exists=True,  # Reprendre une étude existante
     direction="minimize",
-    pruner=pruner
+    pruner=pruner,
 )
 ```
 
@@ -75,6 +74,7 @@ study = optuna.create_study(
 # Variables globales partagées par tous les trials
 topology_data = None
 traffic_data = None
+
 
 def run_hpo():
     global topology_data, traffic_data

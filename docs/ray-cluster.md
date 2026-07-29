@@ -188,6 +188,7 @@ Pour soumettre des jobs depuis l'extérieur (ex: Google Colab via ngrok) :
 
 ```python
 import ray
+
 ray.init("ray://localhost:10001")  # ou ray://<ngrok-tcp-url>:10001
 ```
 

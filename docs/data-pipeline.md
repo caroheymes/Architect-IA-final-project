@@ -190,7 +190,7 @@ Un capteur est **actif** si son taux historique de NaN est **< 90%**. Les inacti
 La lib H3 a changé d'API entre v3 et v4. Le projet gère les deux grâce à des `hasattr` checks :
 
 ```python
-if hasattr(h3, "cell_to_local_ij"):           # v4
+if hasattr(h3, "cell_to_local_ij"):  # v4
     h3_to_ij_func = h3.cell_to_local_ij
 elif hasattr(h3, "experimental_h3_to_local_ij"):  # v3
     h3_to_ij_func = h3.experimental_h3_to_local_ij

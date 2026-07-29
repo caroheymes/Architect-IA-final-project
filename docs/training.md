@@ -112,7 +112,7 @@ Produit **4 graphiques** sauvés en un seul PNG (2×2) :
 ```python
 # Depuis PostgreSQL :
 df_mapping = read_sql("SELECT node_idx, properties_twgid FROM gold.dim_spatial_grid_mapping")
-df_edges   = read_sql("SELECT node_u, node_v FROM gold.dim_gnn_adjacency")
+df_edges = read_sql("SELECT node_u, node_v FROM gold.dim_gnn_adjacency")
 
 # Construction edge_index PyG :
 # 1. Arêtes bidirectionnelles (u→v et v→u)
