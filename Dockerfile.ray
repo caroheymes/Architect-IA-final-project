@@ -30,7 +30,7 @@ RUN pip install --no-cache-dir \
     optuna \
     optuna-dashboard \
     evidently \
-    "pydantic>=1.10.17"
+    "pydantic>=2.8.0"
 
 # Installation de PyTorch avec support CUDA 12.1 (compatible avec votre pilote hôte CUDA 12.8)
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
