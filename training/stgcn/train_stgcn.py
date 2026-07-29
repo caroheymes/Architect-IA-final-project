@@ -419,15 +419,8 @@ def train_model():
         axs[2].grid(True, linestyle="--", alpha=0.5)
         axs[2].legend()
 
-        # --- Graphique 4 : Distribution des Prédictions vs Réel (Boxplot) ---
-        axs[3].boxplot(
-            box_data,
-            showfliers=False,
-            patch_artist=True,
-            boxprops=dict(facecolor="#E6E6FA", color="#5D3FD3", alpha=0.7),
-            medianprops=dict(color="red", linewidth=2),
-        )
-        axs[3].set_xticklabels(bin_labels)
+        # --- Graphique 4 : Boxplot supprimé pour compatibilité ---
+        axs[3].text(0.5, 0.5, "Boxplot désactivé", ha="center", va="center", color="gray")
 
         bin_centers = []
         for i in range(len(bins) - 1):
