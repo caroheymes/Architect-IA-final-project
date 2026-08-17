@@ -1,6 +1,7 @@
 # Environmental variables and secrets
 .env
 kubernetes/secrets.yaml
+ngrok.yml
 
 # Python caching
 __pycache__/

@@ -189,8 +189,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.50'
-          memory: 1.5G
+          cpus: '1.50'
+          memory: 4G
 
   airflow-scheduler:
     <<: *airflow-common
@@ -200,8 +200,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.50'
-          memory: 1.5G
+          cpus: '1.50'
+          memory: 4G
 
   # ==========================================
   # 5. VISUALISATION LAYER (Streamlit App)
@@ -241,16 +241,16 @@ services:
 
   ngrok:
     image: ngrok/ngrok:latest
-    container_name: ngrok_tunnel
+    container_name: lyonflow_ngrok_tunnel
     volumes:
       - ./ngrok.yml:/etc/ngrok.yml
     command:
       - "start"
-      - "--all"
+      - "streamlit"
       - "--config"
       - "/etc/ngrok.yml"
     ports:
-      - "4040:4040"
+      - "4042:4040"
     depends_on:
       - airflow-webserver
       - streamlit

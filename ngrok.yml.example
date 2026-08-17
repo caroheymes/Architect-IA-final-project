@@ -1,6 +1,6 @@
 version: "3"
 agent:
-  authtoken: "2jySesrKhPFeKyaLoR5e1nGskDy_6WvvvKUnbtH8d6m4Q6kLh"
+  authtoken: "VOTRE_NGROK_AUTHTOKEN"
 tunnels:
   streamlit:
     proto: http
@@ -15,4 +15,3 @@ tunnels:
   mlflow:
     proto: http
     addr: mlflow:5000
-
