@@ -318,7 +318,9 @@ def transform_traffic_data():
 
             # 3a. Export to CSV (Stringify spatial objects for clean file writes)
             df_csv = gdf.copy()
-            df_csv["geometry_coordinates_obj"] = df_csv["geometry_coordinates_obj"].apply(lambda x: x.wkt if x else None)
+            df_csv["geometry_coordinates_obj"] = df_csv["geometry_coordinates_obj"].apply(
+                lambda x: x.wkt if x else None
+            )
             df_csv["merged_h3_geometry"] = df_csv["merged_h3_geometry"].apply(lambda x: x.wkt if x else None)
             df_csv["points"] = df_csv["points"].apply(lambda lst: [p.wkt for p in lst] if lst else [])
             df_csv.to_csv(csv_path, index=False, encoding="utf-8")
@@ -326,7 +328,9 @@ def transform_traffic_data():
 
             # 3b. Export to GeoJSON
             gdf_wgs84_copy = gdf_wgs84.copy()
-            gdf_wgs84_copy["points"] = gdf_wgs84_copy["points"].apply(lambda lst: [[p.x, p.y] for p in lst] if lst else [])
+            gdf_wgs84_copy["points"] = gdf_wgs84_copy["points"].apply(
+                lambda lst: [[p.x, p.y] for p in lst] if lst else []
+            )
             gdf_wgs84_copy["merged_h3_geometry"] = gdf_wgs84_copy["merged_h3_geometry"].apply(
                 lambda x: x.__geo_interface__ if x else None
             )

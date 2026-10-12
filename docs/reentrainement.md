@@ -87,13 +87,14 @@ Un `BranchPythonOperator` analyse le fichier de métriques de la matinée (`moni
 # Exemple de branchement logique conceptuel dans Airflow
 def evaluate_drift_and_performance(**kwargs):
     import json
-    with open('/home/ray/project/data/out/monitoring_metrics_morning.json', 'r') as f:
+
+    with open("/home/ray/project/data/out/monitoring_metrics_morning.json", "r") as f:
         metrics = json.load(f)
-    
+
     p_value = metrics.get("data_drift_p_value", 1.0)
     mae_today = metrics.get("mae", 0.0)
-    mae_yesterday = kwargs['ti'].xcom_pull(task_ids='get_yesterday_mae', key='yesterday_mae') or 4.0
-    
+    mae_yesterday = kwargs["ti"].xcom_pull(task_ids="get_yesterday_mae", key="yesterday_mae") or 4.0
+
     if p_value < 0.05 or mae_today > 5.0 or mae_today > (mae_yesterday * 1.15):
         return "trigger_gpu_retraining"
     return "skip_retraining"
