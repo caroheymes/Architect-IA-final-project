@@ -308,29 +308,34 @@ def transform_traffic_data():
         gdf_wgs84 = gdf.to_crs(epsg=4326)
         gdf["id_rue"] = gdf.index
 
-        # Define file outputs
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        now = datetime.now(pytz.timezone("Europe/Paris")).strftime(format="%Y_%m_%d_%H_%M")
-        csv_path = f"{OUTPUT_DIR}/{now}_transformed.csv"
-        json_path = f"{OUTPUT_DIR}/{now}_transformed.json"
+        # Define file outputs (disabled by default to prevent filling disk space)
+        enable_file_backup = os.getenv("ENABLE_FILE_BACKUP", "false").lower() in ("true", "1", "yes")
+        if enable_file_backup:
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            now = datetime.now(pytz.timezone("Europe/Paris")).strftime(format="%Y_%m_%d_%H_%M")
+            csv_path = f"{OUTPUT_DIR}/{now}_transformed.csv"
+            json_path = f"{OUTPUT_DIR}/{now}_transformed.json"
 
-        # 3a. Export to CSV (Stringify spatial objects for clean file writes)
-        df_csv = gdf.copy()
-        df_csv["geometry_coordinates_obj"] = df_csv["geometry_coordinates_obj"].apply(lambda x: x.wkt if x else None)
-        df_csv["merged_h3_geometry"] = df_csv["merged_h3_geometry"].apply(lambda x: x.wkt if x else None)
-        df_csv["points"] = df_csv["points"].apply(lambda lst: [p.wkt for p in lst] if lst else [])
-        df_csv.to_csv(csv_path, index=False, encoding="utf-8")
-        logger.info(f"🟢 Saved CSV output to backup storage: {csv_path}")
+            # 3a. Export to CSV (Stringify spatial objects for clean file writes)
+            df_csv = gdf.copy()
+            df_csv["geometry_coordinates_obj"] = df_csv["geometry_coordinates_obj"].apply(lambda x: x.wkt if x else None)
+            df_csv["merged_h3_geometry"] = df_csv["merged_h3_geometry"].apply(lambda x: x.wkt if x else None)
+            df_csv["points"] = df_csv["points"].apply(lambda lst: [p.wkt for p in lst] if lst else [])
+            df_csv.to_csv(csv_path, index=False, encoding="utf-8")
+            logger.info(f"🟢 Saved CSV output to backup storage: {csv_path}")
 
-        # 3b. Export to GeoJSON
-        gdf_wgs84_copy = gdf_wgs84.copy()
-        gdf_wgs84_copy["points"] = gdf_wgs84_copy["points"].apply(lambda lst: [[p.x, p.y] for p in lst] if lst else [])
-        gdf_wgs84_copy["merged_h3_geometry"] = gdf_wgs84_copy["merged_h3_geometry"].apply(
-            lambda x: x.__geo_interface__ if x else None
-        )
+            # 3b. Export to GeoJSON
+            gdf_wgs84_copy = gdf_wgs84.copy()
+            gdf_wgs84_copy["points"] = gdf_wgs84_copy["points"].apply(lambda lst: [[p.x, p.y] for p in lst] if lst else [])
+            gdf_wgs84_copy["merged_h3_geometry"] = gdf_wgs84_copy["merged_h3_geometry"].apply(
+                lambda x: x.__geo_interface__ if x else None
+            )
 
-        gdf_wgs84_copy.to_file(json_path, driver="GeoJSON")
-        logger.info(f"🟢 Saved GeoJSON output to backup storage: {json_path}")
+            gdf_wgs84_copy.to_file(json_path, driver="GeoJSON")
+            logger.info(f"🟢 Saved GeoJSON output to backup storage: {json_path}")
+        else:
+            logger.info("ℹ️ File backup to disk skipped (ENABLE_FILE_BACKUP=false).")
+            gdf_wgs84_copy = gdf_wgs84.copy()
 
         # 3c. Push to PostgreSQL silver schema
         logger.info("Formatting data and pushing to PostgreSQL silver schema...")

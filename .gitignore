@@ -11,10 +11,12 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 
-# Virtual environments
+# Virtual environments and runners
 venv/
 .venv/
 env/
+actions-runner/
+_bmad/
 
 # Data files (raw and processed data should not be pushed to GitHub)
 *.json
