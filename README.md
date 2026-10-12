@@ -3,7 +3,7 @@ https://lyonflow-app.ngrok.io/
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-Geometric-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![Apache Airflow](https://img.shields.io/badge/Apache%20Airflow-2.8.1-017CE2?logo=apache-airflow&logoColor=white)](https://airflow.apache.org/)
+[![Apache Airflow](https://img.shields.io/badge/Apache%20Airflow-2.9.1-017CE2?logo=apache-airflow&logoColor=white)](https://airflow.apache.org/)
 [![Ray](https://img.shields.io/badge/Ray-Distributed-028CF0?logo=ray&logoColor=white)](https://www.ray.io/)
 [![Optuna](https://img.shields.io/badge/Optuna-Bayesian_HPO-004B87?logo=optuna&logoColor=white)](https://optuna.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -116,7 +116,6 @@ docker-compose up -d --build
 | **📊 Streamlit App** | [https://lyonflow-app.ngrok.io](https://lyonflow-app.ngrok.io) | Dashboard trafic en temps réel |
 | **🧪 MLflow Tracking** | [http://localhost:5000](http://localhost:5000) | Suivi des entraînements et des modèles |
 | **⚙️ Apache Airflow** | [http://localhost:8080](http://localhost:8080) | Interface d'administration des pipelines |
-| **📈 Optuna Dashboard** | [http://localhost:8085](http://localhost:8085) | Visualisation bayésienne des hyperparamètres |
 | **⚡ Ray Dashboard** | [http://localhost:8265](http://localhost:8265) | Monitoring du cluster de calcul distribué |
 
 ### 3. Exécuter l'entraînement du modèle (Ray cluster)
@@ -124,7 +123,7 @@ L'entraînement de notre modèle ST-GRU-GNN consomme directement les exports CSV
 
 Pour lancer l'entraînement optimisé :
 ```powershell
-docker exec -it lyonflow-ray-head python /home/ray/project/training/stgcn/train_stgcn.py
+docker exec -it lyonflow-ray-head python /home/ray/project/training/stgcn/train_stgcn_v2.py
 ```
 *(Remarque : vous pouvez également exécuter l'entraînement directement sur le conteneur `lyonflow-ray-worker` selon vos allocations de calcul).*
 
@@ -133,15 +132,15 @@ Pour garantir la robustesse et la sécurité des données, il est crucial de fai
 
 * **Identifiants de l'interface web d'Airflow** (port `8080`) :
   * Utilisés pour s'authentifier sur le panel d'administration Web d'Airflow.
-  * Valeurs par défaut : `xxx` / `yyyyyyy` (configurables dans le `.env` sous `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD`).
+  * Configurables dans le `.env` sous `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` (valeurs par défaut : `admin` / `admin`).
 * **Identifiants de la base de données PostgreSQL** (port `5432`) :
   * Utilisés pour la connexion physique et la lecture/écriture des flux de données.
-  * Valeurs par défaut : `zzzzz` / `zzzzzzzzzzzz` (configurables dans le `.env` sous `POSTGRES_USER` / `POSTGRES_PASSWORD`).
+  * Configurables dans le `.env` sous `POSTGRES_USER` / `POSTGRES_PASSWORD` (valeurs par défaut : `lyonflow` / `lyonflow_password`).
 
 > [!WARNING]
 > **Connexion `postgres_default` dans Airflow :**
 > La connexion `postgres_default` d'Airflow est utilisée par les pipelines de données et par les jobs Ray (comme `monitoring_evidently.py`) pour interroger la base de données.
-> Elle **doit impérativement** être configurée avec les identifiants PostgreSQL (`zzzzz` / `zzzzzzzzzzzz`), et **non** les identifiants d'administration Airflow (`xxx` / `yyyyyyy`). Une mauvaise configuration entraînera une erreur `FATAL: password authentication failed`.
+> Elle **doit impérativement** être configurée avec les identifiants PostgreSQL (`lyonflow` / `lyonflow_password`), et **non** les identifiants d'administration Airflow (`admin` / `admin`). Une mauvaise configuration entraînera une erreur `FATAL: password authentication failed`.
 
 #### Commande de configuration de la connexion `postgres_default` :
 Si vous devez réinitialiser ou recréer cette connexion, exécutez la commande suivante à la racine :
@@ -153,8 +152,8 @@ docker exec lyonflow-airflow-scheduler airflow connections delete postgres_defau
 docker exec lyonflow-airflow-scheduler airflow connections add postgres_default `
   --conn-type postgres `
   --conn-host postgres `
-  --conn-login zzzzz `
-  --conn-password zzzzzzzzzzzz `
+  --conn-login lyonflow `
+  --conn-password lyonflow_password `
   --conn-port 5432 `
   --conn-schema lyonflow
 ```

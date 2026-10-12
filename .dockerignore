@@ -1,0 +1,16 @@
+﻿.git
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+actions-runner
+_bmad
+perso
+data/historical
+logs/*.log

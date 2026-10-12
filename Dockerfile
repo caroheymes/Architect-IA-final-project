@@ -18,3 +18,8 @@ USER airflow
 # Copie et installation des dépendances Python du projet
 COPY --chown=airflow:root requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Intégration du code source et des DAGs pour autonomie Cloud / Kubernetes
+COPY --chown=airflow:root ./dags /opt/airflow/dags
+COPY --chown=airflow:root . /opt/airflow/project
+ENV PYTHONPATH=/opt/airflow/project
