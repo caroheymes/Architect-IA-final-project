@@ -144,8 +144,11 @@ class TestTransformTrafficData(unittest.TestCase):
         mock_engine.begin.return_value.__enter__.return_value = mock_conn
         mock_create_engine.return_value = mock_engine
 
-        # Run the transformation pipeline with our custom to_sql patch
-        with patch("dags.dag_pipeline.pd.DataFrame.to_sql", new=custom_to_sql):
+        # Run the transformation pipeline with our custom to_sql patch and file backup enabled
+        with (
+            patch("dags.dag_pipeline.pd.DataFrame.to_sql", new=custom_to_sql),
+            patch.dict(os.environ, {"ENABLE_FILE_BACKUP": "true"}),
+        ):
             transform_traffic_data()
 
         # Assertions for General flow
