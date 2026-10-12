@@ -1,20 +1,10 @@
-name: CI — Tests & Qualité
+name: CI â€” Tests & QualitÃ©
 
 on:
   push:
     branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'perso/**'
   pull_request:
     branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'perso/**'
 
 env:
   PYTHON_VERSION: "3.12"

@@ -1,13 +1,8 @@
-name: CD — Deploy Staging
+name: CD â€” Deploy Staging
 
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'perso/**'
 
 env:
   REGISTRY: ghcr.io
