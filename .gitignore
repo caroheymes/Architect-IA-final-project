@@ -44,21 +44,6 @@ load_data_transform_generate_image.py
 .vscode/
 .idea/
 
-# AI assistants
-.claude/
-CLAUDE.md
-.cursorrules
-.cursorignore
-.cursor/
-.aider*
-.continue/
-.codeium/
-.windsurf/
-.bolt/
-.v0/
-.tabnine*
-.sourcegraph/
-.cody/
-.copilot/
-.github/copilot-instructions.md
+# AI assistants local config
 .agents/
+
