@@ -308,6 +308,13 @@ def transform_traffic_data():
         gdf_wgs84 = gdf.to_crs(epsg=4326)
         gdf["id_rue"] = gdf.index
 
+        # Serialize geometries for GeoJSON and PostgreSQL
+        gdf_wgs84_copy = gdf_wgs84.copy()
+        gdf_wgs84_copy["points"] = gdf_wgs84_copy["points"].apply(lambda lst: [[p.x, p.y] for p in lst] if lst else [])
+        gdf_wgs84_copy["merged_h3_geometry"] = gdf_wgs84_copy["merged_h3_geometry"].apply(
+            lambda x: x.__geo_interface__ if x else None
+        )
+
         # Define file outputs (disabled by default to prevent filling disk space)
         enable_file_backup = os.getenv("ENABLE_FILE_BACKUP", "false").lower() in ("true", "1", "yes")
         if enable_file_backup:
@@ -327,19 +334,10 @@ def transform_traffic_data():
             logger.info(f"🟢 Saved CSV output to backup storage: {csv_path}")
 
             # 3b. Export to GeoJSON
-            gdf_wgs84_copy = gdf_wgs84.copy()
-            gdf_wgs84_copy["points"] = gdf_wgs84_copy["points"].apply(
-                lambda lst: [[p.x, p.y] for p in lst] if lst else []
-            )
-            gdf_wgs84_copy["merged_h3_geometry"] = gdf_wgs84_copy["merged_h3_geometry"].apply(
-                lambda x: x.__geo_interface__ if x else None
-            )
-
             gdf_wgs84_copy.to_file(json_path, driver="GeoJSON")
             logger.info(f"🟢 Saved GeoJSON output to backup storage: {json_path}")
         else:
             logger.info("ℹ️ File backup to disk skipped (ENABLE_FILE_BACKUP=false).")
-            gdf_wgs84_copy = gdf_wgs84.copy()
 
         # 3c. Push to PostgreSQL silver schema
         logger.info("Formatting data and pushing to PostgreSQL silver schema...")
